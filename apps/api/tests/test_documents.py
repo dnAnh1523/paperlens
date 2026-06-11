@@ -14,7 +14,7 @@ def test_upload_list_and_read_document() -> None:
     assert response.status_code == 201
     created = response.json()
     assert created["original_filename"] == "paper.txt"
-    assert created["status"] == "pending"
+    assert created["status"] == "ready"
     assert Path(created["storage_path"]).exists()
 
     list_response = client.get("/documents")
@@ -26,7 +26,7 @@ def test_upload_list_and_read_document() -> None:
     detail = detail_response.json()
     assert detail["id"] == created["id"]
     assert len(detail["ingestion_jobs"]) == 1
-    assert detail["ingestion_jobs"][0]["stage"] == "queued"
+    assert detail["ingestion_jobs"][0]["stage"] == "completed"
 
 
 def test_upload_rejects_unsupported_content_type() -> None:

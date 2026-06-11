@@ -94,3 +94,19 @@ Implemented in feature branch `feature/m2-document-library-ui`:
 
 Current limitation: the UI only manages uploaded source files. It does not yet show ingestion progress beyond the document status field, and no PDF parsing or RAG chat UI is implemented yet.
 
+## Milestone 3 Progress: Ingestion Foundation
+
+Implemented in feature branch `feature/m3-ingestion-foundation`:
+
+- Synchronous backend ingestion after upload and through a retry endpoint.
+- Text extraction for `.txt`, `.md`, and text-layer `.pdf` documents.
+- Ingestion job status transitions: `pending`, `running`, `completed`, and `failed`.
+- Local artifact storage under `data/storage/artifacts/documents/{document_id}/`.
+- Backend endpoints:
+  - `GET /documents/{document_id}/ingestion`
+  - `POST /documents/{document_id}/ingestion`
+  - `GET /documents/{document_id}/ingestion/text-preview`
+- Tests for text and Markdown ingestion, unsupported extraction, ingestion status, and retry.
+
+Current limitation: ingestion is synchronous and extracts only source text. OCR, page rendering, table/figure/equation extraction, chunking, and vector indexing are still future work.
+

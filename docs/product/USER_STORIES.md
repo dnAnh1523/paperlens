@@ -6,11 +6,15 @@ As a user, I want to upload a scientific PDF so that PaperLens can ingest it for
 
 ## Ask grounded questions
 
-As a user, I want to ask questions about a paper so that I can understand claims, methods, results, limitations, figures, tables, and equations.
+As a user, I want to ask questions in a conversation so that I can understand claims, methods, results, limitations, figures, tables, and equations.
 
 ## Inspect evidence
 
-As a user, I want to see the source page/table/figure behind an answer so that I can verify the system's reasoning.
+As a user, I want to inspect evidence snippets and document/chunk references under an answer so that I can verify the system's reasoning.
+
+## Manage conversations
+
+As a user, I want to create, select, and delete conversations so that I can keep separate research questions organized.
 
 ## Compare results
 

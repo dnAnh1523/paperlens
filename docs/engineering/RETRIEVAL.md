@@ -44,10 +44,15 @@ GET /search?query=...&limit=10
 
 Milestone 4 uses a SQLite `LIKE`-based lexical fallback instead of FTS5. This keeps setup reliable across local Windows 11 SQLite builds and avoids extra migration complexity. The search service tokenizes the query, filters chunks containing at least one query term, scores matches by term frequency with a small phrase-match bonus, and returns ranked chunks with document metadata.
 
+## Chat evidence
+
+Milestone 5 reuses the same lexical search service for chat. When a user posts a message, the backend searches chunks with the message content, stores the retrieved chunk metadata as `message_evidence`, and returns a deterministic assistant message. Evidence rows keep `document_id`, `chunk_id`, rank, score, and an excerpt snapshot so chat history remains understandable even if chunks are later regenerated.
+
 ## Limitations
 
 - No embeddings or vector search yet.
 - No semantic reranking yet.
 - No citation assembly beyond chunk metadata.
+- Chat responses are deterministic evidence previews, not generated answers.
 - No evidence-type-specific retrieval beyond text chunks.
 - LIKE-based search is acceptable for small local corpora but should be replaced or complemented by FTS5 and embeddings later.

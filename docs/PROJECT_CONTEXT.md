@@ -128,3 +128,16 @@ Implemented in feature branch `feature/m4-chunking-retrieval-foundation`:
 
 Current limitation: retrieval is lexical only. No embeddings, vector database, semantic reranking, or LLM answer generation is implemented yet.
 
+## Milestone 5 Progress: Chat Evidence API
+
+Implemented in feature branch `feature/m5-chat-evidence-api`:
+
+- SQLite-backed conversations, messages, and message evidence rows.
+- Backend conversation endpoints for create, list, read, delete, post message, and read history.
+- Deterministic assistant response template grounded in retrieved local chunks.
+- Evidence snapshots linked to assistant messages with document/chunk references, rank, score, and excerpt.
+- No external LLM, embedding model, vector database, queue, Docker service, or paid API call.
+- Tests for conversation creation/listing, chat turns, evidence storage, no-evidence responses, message history, and cascade delete.
+
+Current limitation: assistant responses are retrieval previews only. They do not synthesize full natural-language answers or perform semantic retrieval.
+

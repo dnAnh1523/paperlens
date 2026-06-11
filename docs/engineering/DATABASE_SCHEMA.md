@@ -52,6 +52,43 @@ Stores source-grounded text chunks derived from extracted document text.
 | `estimated_token_count` | integer | Character-based token estimate |
 | `created_at` | datetime | Creation timestamp |
 
+### `conversations`
+
+Stores chat conversation metadata.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `conversation_id` | string UUID | Primary key |
+| `title` | string | Display title |
+| `created_at` | datetime | Creation timestamp |
+| `updated_at` | datetime | Last update timestamp |
+
+### `messages`
+
+Stores user and assistant messages.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `message_id` | string UUID | Primary key |
+| `conversation_id` | string UUID | Foreign key to `conversations.conversation_id` |
+| `role` | enum | `user` or `assistant` |
+| `content` | text | Message body |
+| `created_at` | datetime | Creation timestamp |
+
+### `message_evidence`
+
+Stores evidence snapshots linked to assistant messages.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `evidence_id` | string UUID | Primary key |
+| `message_id` | string UUID | Foreign key to `messages.message_id` |
+| `document_id` | string UUID | Source document identifier |
+| `chunk_id` | string UUID | Source chunk identifier |
+| `rank` | integer | Retrieval rank used in the assistant response |
+| `score` | float | Lexical retrieval score |
+| `excerpt` | text | Snapshot text stored with the message |
+
 ## Current migration strategy
 
 For Milestone 1, the API calls `Base.metadata.create_all()` at startup. This is acceptable for the local-native scaffold.

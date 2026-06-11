@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: paperlens-api
+Version: 0.0.1
+Summary: FastAPI backend for PaperLens
+Requires-Python: <3.14,>=3.12
+Requires-Dist: fastapi==0.115.14
+Requires-Dist: uvicorn[standard]==0.35.0
+Requires-Dist: pydantic-settings==2.10.1
+Requires-Dist: sqlalchemy==2.0.41
+Requires-Dist: alembic==1.16.4
+Requires-Dist: python-multipart==0.0.20
+Requires-Dist: qdrant-client==1.14.3
+Requires-Dist: pymupdf==1.26.3
+Requires-Dist: pillow==11.3.0
+Requires-Dist: httpx==0.28.1
+Requires-Dist: httpcore==1.0.9
+Requires-Dist: python-dotenv==1.1.1
+Provides-Extra: dev
+Requires-Dist: pytest==8.4.1; extra == "dev"
+Requires-Dist: pytest-asyncio==1.0.0; extra == "dev"
+Requires-Dist: ruff==0.12.2; extra == "dev"
+Requires-Dist: mypy==1.16.1; extra == "dev"

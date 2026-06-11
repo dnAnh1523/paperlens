@@ -1,0 +1,28 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.health import router as health_router
+from app.config import settings
+
+
+def create_app() -> FastAPI:
+    settings.storage_path.mkdir(parents=True, exist_ok=True)
+    settings.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+
+    app = FastAPI(
+        title="PaperLens API",
+        description="Backend API for evidence-type-aware multimodal RAG over scientific papers.",
+        version="0.0.1",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.include_router(health_router)
+    return app
+
+
+app = create_app()

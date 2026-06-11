@@ -1,0 +1,30 @@
+name: Docs Check
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/docs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  markdown-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check required docs exist
+        run: |
+          test -f docs/PROJECT_CONTEXT.md
+          test -f docs/product/PRD.md
+          test -f docs/engineering/ARCHITECTURE.md
+          test -f docs/thesis/00_proposal.md

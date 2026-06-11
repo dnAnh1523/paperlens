@@ -63,3 +63,20 @@ Docker image pulls and WSL2 Docker storage consumed too much disk space on the W
 - Large PDF/image processing can still consume disk space.
 - OCR and table extraction dependencies may be heavy; introduce them carefully.
 - Multimodal API cost must be controlled with caching and small test documents.
+
+## Milestone 1 Progress: Document Metadata and Upload Flow
+
+Implemented in feature branch `feature/m1-backend-document-models`:
+
+- SQLite-backed metadata initialization for local-native development.
+- `documents` table for uploaded source files.
+- `ingestion_jobs` table for queued ingestion work.
+- Local file storage under `data/storage/documents/{document_id}/`.
+- Backend endpoints:
+  - `POST /documents`
+  - `GET /documents`
+  - `GET /documents/{document_id}`
+  - `DELETE /documents/{document_id}`
+- Tests for upload, list, read, and unsupported content type rejection.
+
+Current limitation: ingestion jobs are queued metadata only. Actual PDF parsing, figure/table extraction, and vector indexing are not implemented yet.

@@ -1,6 +1,11 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.main import app
+
+
+def _term(prefix: str) -> str:
+    return f"{prefix}{uuid4().hex}"
 
 
 def _upload_text(client: TestClient, filename: str, text: str) -> dict[str, object]:
@@ -29,13 +34,13 @@ def _long_text(unique_term: str) -> str:
 def test_chunking_success_for_ingested_text_and_markdown() -> None:
     client = TestClient(app)
 
-    text_document = _upload_text(client, "chunk-source.txt", _long_text("chunktextalpha"))
+    text_document = _upload_text(client, "chunk-source.txt", _long_text(_term("chunktextalpha")))
     markdown_response = client.post(
         "/documents",
         files={
             "file": (
                 "chunk-source.md",
-                _long_text("chunkmarkdownbeta").encode("utf-8"),
+                _long_text(_term("chunkmarkdownbeta")).encode("utf-8"),
                 "text/markdown",
             )
         },
@@ -58,7 +63,7 @@ def test_chunking_success_for_ingested_text_and_markdown() -> None:
 
 def test_list_chunks_for_document_with_pagination() -> None:
     client = TestClient(app)
-    document = _upload_text(client, "list-chunks.txt", _long_text("chunklistgamma"))
+    document = _upload_text(client, "list-chunks.txt", _long_text(_term("chunklistgamma")))
     chunk_response = client.post(f"/documents/{document['id']}/chunks")
     assert chunk_response.status_code == 200
 
@@ -74,7 +79,7 @@ def test_list_chunks_for_document_with_pagination() -> None:
 
 def test_get_single_chunk() -> None:
     client = TestClient(app)
-    document = _upload_text(client, "single-chunk.txt", _long_text("chunksingledelta"))
+    document = _upload_text(client, "single-chunk.txt", _long_text(_term("chunksingledelta")))
     chunk_response = client.post(f"/documents/{document['id']}/chunks")
     assert chunk_response.status_code == 200
     created_chunk = chunk_response.json()[0]
@@ -88,7 +93,7 @@ def test_get_single_chunk() -> None:
 
 def test_rerun_chunking_replaces_old_chunks_without_duplicates() -> None:
     client = TestClient(app)
-    document = _upload_text(client, "rerun-chunks.txt", _long_text("chunkrerunepsilon"))
+    document = _upload_text(client, "rerun-chunks.txt", _long_text(_term("chunkrerunepsilon")))
 
     first_response = client.post(f"/documents/{document['id']}/chunks")
     assert first_response.status_code == 200
@@ -107,18 +112,19 @@ def test_rerun_chunking_replaces_old_chunks_without_duplicates() -> None:
 
 def test_search_chunks_by_query() -> None:
     client = TestClient(app)
-    document = _upload_text(client, "search-chunks.txt", _long_text("retrievalneedleomega"))
+    term = _term("retrievalneedleomega")
+    document = _upload_text(client, "search-chunks.txt", _long_text(term))
     chunk_response = client.post(f"/documents/{document['id']}/chunks")
     assert chunk_response.status_code == 200
 
-    search_response = client.get("/search", params={"query": "retrievalneedleomega", "limit": 5})
+    search_response = client.get("/search", params={"query": term, "limit": 5})
     assert search_response.status_code == 200
     payload = search_response.json()
-    assert payload["query"] == "retrievalneedleomega"
+    assert payload["query"] == term
     assert payload["total"] >= 1
     assert payload["results"][0]["score"] > 0
     assert payload["results"][0]["document"]["id"] == document["id"]
-    assert "retrievalneedleomega" in payload["results"][0]["chunk"]["text"]
+    assert term in payload["results"][0]["chunk"]["text"]
 
 
 def test_chunking_missing_extracted_text_returns_conflict() -> None:

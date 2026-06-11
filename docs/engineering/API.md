@@ -84,6 +84,30 @@ GET /documents/{document_id}/ingestion/text-preview?max_chars=1000
 Returns a preview of `data/storage/artifacts/documents/{document_id}/extracted_text.txt`.
 `max_chars` must be between 1 and 10000.
 
+### Trigger or re-run chunking
+
+```http
+POST /documents/{document_id}/chunks
+```
+
+Reads `data/storage/artifacts/documents/{document_id}/extracted_text.txt`, replaces existing chunks for the document, stores new rows in SQLite, writes `chunks.json`, and returns the chunks.
+
+### List chunks
+
+```http
+GET /documents/{document_id}/chunks?offset=0&limit=20
+```
+
+Returns chunks ordered by `chunk_index`. `limit` must be between 1 and 100.
+
+### Get one chunk
+
+```http
+GET /documents/{document_id}/chunks/{chunk_id}
+```
+
+Returns one chunk for the document.
+
 ### Delete document
 
 ```http
@@ -91,3 +115,13 @@ DELETE /documents/{document_id}
 ```
 
 Deletes document metadata, the local stored file directory, and derived artifact directory.
+
+## Search
+
+### Search chunks
+
+```http
+GET /search?query=local%20retrieval&limit=10
+```
+
+Runs local lexical search across stored chunks and returns ranked matches with chunk text and document metadata. `limit` must be between 1 and 50.

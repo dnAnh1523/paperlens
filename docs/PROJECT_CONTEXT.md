@@ -110,3 +110,21 @@ Implemented in feature branch `feature/m3-ingestion-foundation`:
 
 Current limitation: ingestion is synchronous and extracts only source text. OCR, page rendering, table/figure/equation extraction, chunking, and vector indexing are still future work.
 
+## Milestone 4 Progress: Chunking and Retrieval Foundation
+
+Implemented in feature branch `feature/m4-chunking-retrieval-foundation`:
+
+- `document_chunks` SQLite table for source-grounded extracted-text chunks.
+- Explicit chunking endpoint that reads extracted text artifacts and replaces stale chunks.
+- Character-based, paragraph-aware chunking with overlap and source offsets.
+- Local chunk artifact at `data/storage/artifacts/documents/{document_id}/chunks.json`.
+- LIKE-based lexical search across stored chunks.
+- Backend endpoints:
+  - `POST /documents/{document_id}/chunks`
+  - `GET /documents/{document_id}/chunks`
+  - `GET /documents/{document_id}/chunks/{chunk_id}`
+  - `GET /search?query=...`
+- Tests for chunk creation, listing, single chunk retrieval, reruns, search, and missing extracted text.
+
+Current limitation: retrieval is lexical only. No embeddings, vector database, semantic reranking, or LLM answer generation is implemented yet.
+

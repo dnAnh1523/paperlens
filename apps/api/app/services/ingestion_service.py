@@ -13,6 +13,7 @@ from app.ingestion.artifacts import (
 from app.ingestion.extractors import ExtractionError, UnsupportedExtractionError, extract_text
 from app.models.document import Document, DocumentStatus
 from app.models.ingestion_job import IngestionJob, IngestionJobStatus
+from app.services.chunking_service import delete_chunks_for_document
 
 
 def get_latest_ingestion_job(db: Session, document_id: str) -> IngestionJob | None:
@@ -46,6 +47,7 @@ def run_ingestion(db: Session, document: Document) -> IngestionJob:
     job = ensure_ingestion_job(db, document)
     started_at = datetime.now(timezone.utc)
 
+    delete_chunks_for_document(db, document.id)
     clear_document_artifacts(document.id)
     job.status = IngestionJobStatus.RUNNING
     job.stage = "extracting"

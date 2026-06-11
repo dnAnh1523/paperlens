@@ -7,6 +7,7 @@ from app.config import settings
 
 EXTRACTED_TEXT_FILENAME = "extracted_text.txt"
 METADATA_FILENAME = "metadata.json"
+CHUNKS_FILENAME = "chunks.json"
 
 
 def document_artifact_dir(document_id: str) -> Path:
@@ -39,4 +40,12 @@ def write_metadata(document_id: str, metadata: dict[str, Any]) -> Path:
     artifact_dir.mkdir(parents=True, exist_ok=True)
     output_path = artifact_dir / METADATA_FILENAME
     output_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+    return output_path
+
+
+def write_chunks_artifact(document_id: str, chunks: list[dict[str, Any]]) -> Path:
+    artifact_dir = document_artifact_dir(document_id)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    output_path = artifact_dir / CHUNKS_FILENAME
+    output_path.write_text(json.dumps(chunks, indent=2, sort_keys=True), encoding="utf-8")
     return output_path

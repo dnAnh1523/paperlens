@@ -18,6 +18,26 @@ class DocumentChunkRead(BaseModel):
     created_at: datetime
 
 
+class ChunkContextDocumentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    original_filename: str
+    content_type: str
+    file_size_bytes: int
+    status: DocumentStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+class DocumentChunkContextRead(BaseModel):
+    document: ChunkContextDocumentRead
+    selected_chunk: DocumentChunkRead
+    previous_chunks: list[DocumentChunkRead]
+    next_chunks: list[DocumentChunkRead]
+
+
 class SearchDocumentRead(BaseModel):
     id: str
     title: str

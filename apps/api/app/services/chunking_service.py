@@ -30,6 +30,13 @@ class ChunkCandidate:
     estimated_token_count: int
 
 
+@dataclass(frozen=True)
+class ChunkContext:
+    selected_chunk: DocumentChunk
+    previous_chunks: list[DocumentChunk]
+    next_chunks: list[DocumentChunk]
+
+
 def estimate_token_count(text: str) -> int:
     if not text:
         return 0
@@ -171,3 +178,42 @@ def get_document_chunk(db: Session, document_id: str, chunk_id: str) -> Document
         DocumentChunk.chunk_id == chunk_id,
     )
     return db.scalars(statement).first()
+
+
+def get_document_chunk_context(
+    db: Session,
+    document_id: str,
+    chunk_id: str,
+    before: int,
+    after: int,
+) -> ChunkContext | None:
+    selected_chunk = get_document_chunk(db, document_id=document_id, chunk_id=chunk_id)
+    if selected_chunk is None:
+        return None
+
+    previous_statement = (
+        select(DocumentChunk)
+        .where(
+            DocumentChunk.document_id == document_id,
+            DocumentChunk.chunk_index < selected_chunk.chunk_index,
+        )
+        .order_by(DocumentChunk.chunk_index.desc())
+        .limit(before)
+    )
+    next_statement = (
+        select(DocumentChunk)
+        .where(
+            DocumentChunk.document_id == document_id,
+            DocumentChunk.chunk_index > selected_chunk.chunk_index,
+        )
+        .order_by(DocumentChunk.chunk_index.asc())
+        .limit(after)
+    )
+
+    previous_chunks = list(reversed(list(db.scalars(previous_statement).all())))
+    next_chunks = list(db.scalars(next_statement).all())
+    return ChunkContext(
+        selected_chunk=selected_chunk,
+        previous_chunks=previous_chunks,
+        next_chunks=next_chunks,
+    )

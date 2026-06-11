@@ -5,12 +5,23 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ChatMessage,
   Conversation,
+  DocumentChunk,
+  DocumentChunkContext,
+  MessageEvidence,
   createConversation,
   deleteConversation,
   fetchConversationMessages,
   fetchConversations,
+  fetchDocumentChunkContext,
   postConversationMessage,
 } from "../../lib/api";
+
+type EvidencePreviewState = {
+  isOpen: boolean;
+  isLoading?: boolean;
+  context?: DocumentChunkContext;
+  error?: string;
+};
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -27,6 +38,26 @@ function getMessageLabel(message: ChatMessage): string {
   return message.role === "user" ? "You" : "PaperLens";
 }
 
+function SourceContextChunk({
+  chunk,
+  label,
+  isSelected = false,
+}: {
+  chunk: DocumentChunk;
+  label: string;
+  isSelected?: boolean;
+}) {
+  return (
+    <section className={isSelected ? "sourceChunk selected" : "sourceChunk"}>
+      <div className="sourceChunkHeader">
+        <strong>{label}</strong>
+        <span>Chunk {chunk.chunk_index}</span>
+      </div>
+      <p>{chunk.text}</p>
+    </section>
+  );
+}
+
 export function ChatWorkspace() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -38,6 +69,7 @@ export function ChatWorkspace() {
   const [isSending, setIsSending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [evidencePreviews, setEvidencePreviews] = useState<Record<string, EvidencePreviewState>>({});
 
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.conversation_id === selectedConversationId) ?? null,
@@ -50,8 +82,10 @@ export function ChatWorkspace() {
     try {
       const nextMessages = await fetchConversationMessages(conversationId);
       setMessages(nextMessages);
+      setEvidencePreviews({});
     } catch (loadError) {
       setMessages([]);
+      setEvidencePreviews({});
       setError(loadError instanceof Error ? loadError.message : "Failed to load messages.");
     } finally {
       setIsLoadingMessages(false);
@@ -67,6 +101,7 @@ export function ChatWorkspace() {
       await loadMessages(nextSelectedId);
     } else {
       setMessages([]);
+      setEvidencePreviews({});
     }
   }
 
@@ -116,6 +151,7 @@ export function ChatWorkspace() {
       setConversations((currentConversations) => [conversation, ...currentConversations]);
       setSelectedConversationId(conversation.conversation_id);
       setMessages([]);
+      setEvidencePreviews({});
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create conversation.");
     } finally {
@@ -154,11 +190,61 @@ export function ChatWorkspace() {
         await loadMessages(nextSelectedId);
       } else {
         setMessages([]);
+        setEvidencePreviews({});
       }
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Failed to delete conversation.");
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleToggleEvidencePreview(evidence: MessageEvidence) {
+    const currentPreview = evidencePreviews[evidence.evidence_id];
+    if (currentPreview?.isOpen) {
+      setEvidencePreviews((currentPreviews) => ({
+        ...currentPreviews,
+        [evidence.evidence_id]: {
+          ...(currentPreviews[evidence.evidence_id] ?? {}),
+          isOpen: false,
+        },
+      }));
+      return;
+    }
+
+    setEvidencePreviews((currentPreviews) => ({
+      ...currentPreviews,
+      [evidence.evidence_id]: {
+        ...(currentPreviews[evidence.evidence_id] ?? {}),
+        isOpen: true,
+        isLoading: !currentPreviews[evidence.evidence_id]?.context,
+        error: undefined,
+      },
+    }));
+
+    if (currentPreview?.context) {
+      return;
+    }
+
+    try {
+      const context = await fetchDocumentChunkContext(evidence.document_id, evidence.chunk_id);
+      setEvidencePreviews((currentPreviews) => ({
+        ...currentPreviews,
+        [evidence.evidence_id]: {
+          ...(currentPreviews[evidence.evidence_id] ?? {}),
+          context,
+          isLoading: false,
+        },
+      }));
+    } catch (previewError) {
+      setEvidencePreviews((currentPreviews) => ({
+        ...currentPreviews,
+        [evidence.evidence_id]: {
+          ...(currentPreviews[evidence.evidence_id] ?? {}),
+          isLoading: false,
+          error: previewError instanceof Error ? previewError.message : "Failed to load source context.",
+        },
+      }));
     }
   }
 
@@ -200,10 +286,10 @@ export function ChatWorkspace() {
     <section className="workspace chatWorkspace" aria-label="PaperLens chat workspace">
       <div className="workspaceHeader">
         <div>
-          <p className="eyebrow">Milestone 7</p>
+          <p className="eyebrow">Milestone 8</p>
           <h2>Evidence chat</h2>
           <p className="sectionText">
-            Ask over chunked local documents and inspect the deterministic evidence preview from FastAPI.
+            Ask over chunked local documents, then open evidence cards to inspect source context.
           </p>
         </div>
         <div className="statusPill">
@@ -285,25 +371,106 @@ export function ChatWorkspace() {
 
                 {message.role === "assistant" && message.evidence.length > 0 ? (
                   <div className="evidenceList" aria-label="Retrieved evidence">
-                    {message.evidence.map((evidence) => (
-                      <div className="evidenceCard" key={evidence.evidence_id}>
-                        <div className="evidenceHeader">
-                          <strong>Evidence {evidence.rank}</strong>
-                          <span>Score {formatScore(evidence.score)}</span>
-                        </div>
-                        <p>{evidence.excerpt}</p>
-                        <dl>
-                          <div>
-                            <dt>Document</dt>
-                            <dd>{evidence.document_id.slice(0, 8)}</dd>
-                          </div>
-                          <div>
-                            <dt>Chunk</dt>
-                            <dd>{evidence.chunk_id.slice(0, 8)}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                    ))}
+                    {message.evidence.map((evidence) => {
+                      const preview = evidencePreviews[evidence.evidence_id];
+                      const context = preview?.context;
+                      const documentLabel = context?.document.original_filename ?? evidence.document_id.slice(0, 8);
+
+                      return (
+                        <article
+                          className={preview?.isOpen ? "evidenceCard expanded" : "evidenceCard"}
+                          key={evidence.evidence_id}
+                        >
+                          <button
+                            type="button"
+                            className="evidenceSummary"
+                            onClick={() => void handleToggleEvidencePreview(evidence)}
+                            aria-expanded={Boolean(preview?.isOpen)}
+                            aria-controls={`evidence-context-${evidence.evidence_id}`}
+                          >
+                            <span>
+                              <strong>Evidence {evidence.rank}</strong>
+                              <small>{documentLabel}</small>
+                            </span>
+                            <span className="evidenceScore">Score {formatScore(evidence.score)}</span>
+                          </button>
+                          <p className="evidenceExcerpt">{evidence.excerpt}</p>
+                          <dl>
+                            <div>
+                              <dt>Document</dt>
+                              <dd>{evidence.document_id.slice(0, 8)}</dd>
+                            </div>
+                            <div>
+                              <dt>Chunk</dt>
+                              <dd>{evidence.chunk_id.slice(0, 8)}</dd>
+                            </div>
+                          </dl>
+
+                          {preview?.isOpen ? (
+                            <div className="sourcePreviewPanel" id={`evidence-context-${evidence.evidence_id}`}>
+                              {preview.isLoading ? (
+                                <p className="sourcePreviewStatus">Loading source context...</p>
+                              ) : null}
+                              {preview.error ? <div className="alert error">{preview.error}</div> : null}
+
+                              {context ? (
+                                <>
+                                  <div className="sourcePreviewHeader">
+                                    <div>
+                                      <strong>{context.document.original_filename}</strong>
+                                      <span>{context.document.title}</span>
+                                    </div>
+                                    <span>Selected chunk {context.selected_chunk.chunk_index}</span>
+                                  </div>
+
+                                  <dl className="sourceMetaGrid">
+                                    <div>
+                                      <dt>Document id</dt>
+                                      <dd>{context.document.id.slice(0, 8)}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Chunk id</dt>
+                                      <dd>{context.selected_chunk.chunk_id.slice(0, 8)}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Offsets</dt>
+                                      <dd>
+                                        {context.selected_chunk.char_start}-{context.selected_chunk.char_end}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt>Estimated tokens</dt>
+                                      <dd>{context.selected_chunk.estimated_token_count}</dd>
+                                    </div>
+                                  </dl>
+
+                                  <div className="sourceContextList">
+                                    {context.previous_chunks.map((chunk) => (
+                                      <SourceContextChunk
+                                        chunk={chunk}
+                                        label="Previous context"
+                                        key={chunk.chunk_id}
+                                      />
+                                    ))}
+                                    <SourceContextChunk
+                                      chunk={context.selected_chunk}
+                                      label="Retrieved chunk"
+                                      isSelected
+                                    />
+                                    {context.next_chunks.map((chunk) => (
+                                      <SourceContextChunk chunk={chunk} label="Next context" key={chunk.chunk_id} />
+                                    ))}
+                                    {context.previous_chunks.length === 0 && context.next_chunks.length === 0 ? (
+                                      <p className="sourcePreviewStatus">No neighboring chunks are available.</p>
+                                    ) : null}
+                                  </div>
+                                </>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    })}
                   </div>
                 ) : null}
                 {message.role === "assistant" && message.evidence.length === 0 ? (

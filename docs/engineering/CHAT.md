@@ -23,6 +23,10 @@ Milestone 6 adds a Next.js chat workspace to the home page:
 5. Assistant evidence rows are shown as citation cards with rank, score, excerpt, document id, and chunk id.
 6. If no evidence is returned, the UI shows the backend no-evidence message.
 
+Milestone 8 makes those evidence cards expandable. Opening a card loads source context from
+`GET /documents/{document_id}/chunks/{chunk_id}/context` and shows the selected chunk, source offsets,
+estimated token count, document filename, and neighboring chunks.
+
 ## Response behavior
 
 Assistant messages always identify themselves as evidence previews. When chunks match, the response lists retrieved evidence snippets with document and chunk references. When no chunks match, the response clearly says no relevant evidence was found and suggests chunking ingested documents or using terms from uploaded sources.
@@ -41,9 +45,13 @@ Each evidence row stores:
 
 The excerpt is a snapshot of retrieved chunk text. It is stored with the message so the conversation remains interpretable even if chunks are regenerated later.
 
+The expanded source preview reads the current chunk row by `document_id` and `chunk_id`. If chunks are
+regenerated after a conversation was created, an old evidence row can still show its stored excerpt, but
+the source context lookup may return `Chunk not found`.
+
 ## Local limitations
 
 - Retrieval is lexical and LIKE-based.
 - No semantic retrieval, embeddings, reranking, or answer synthesis yet.
-- No frontend source preview or PDF page viewer yet.
+- No PDF page viewer yet.
 - Conversation schema is created with the existing local `create_all()` startup behavior; Alembic migrations are still future work.

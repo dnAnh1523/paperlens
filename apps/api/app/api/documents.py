@@ -5,7 +5,11 @@ from app.db.session import get_db
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.ingestion_job import IngestionJob
-from app.schemas.chunk import DocumentChunkRead
+from app.schemas.chunk import (
+    ChunkContextDocumentRead,
+    DocumentChunkContextRead,
+    DocumentChunkRead,
+)
 from app.schemas.document import (
     DocumentDetailRead,
     DocumentRead,
@@ -21,6 +25,7 @@ from app.services.document_service import (
 from app.services.chunking_service import (
     MissingExtractedTextError,
     chunk_document,
+    get_document_chunk_context,
     get_document_chunk,
     list_document_chunks,
 )
@@ -80,6 +85,38 @@ def read_document_chunks(
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return list_document_chunks(db, document_id=document_id, offset=offset, limit=limit)
+
+
+@router.get("/{document_id}/chunks/{chunk_id}/context", response_model=DocumentChunkContextRead)
+def read_document_chunk_context(
+    document_id: str,
+    chunk_id: str,
+    before: int = Query(default=1, ge=0, le=5),
+    after: int = Query(default=1, ge=0, le=5),
+    db: Session = Depends(get_db),
+) -> DocumentChunkContextRead:
+    document = get_document(db, document_id)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    context = get_document_chunk_context(
+        db,
+        document_id=document_id,
+        chunk_id=chunk_id,
+        before=before,
+        after=after,
+    )
+    if context is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found")
+
+    return DocumentChunkContextRead(
+        document=ChunkContextDocumentRead.model_validate(document),
+        selected_chunk=DocumentChunkRead.model_validate(context.selected_chunk),
+        previous_chunks=[
+            DocumentChunkRead.model_validate(chunk) for chunk in context.previous_chunks
+        ],
+        next_chunks=[DocumentChunkRead.model_validate(chunk) for chunk in context.next_chunks],
+    )
 
 
 @router.get("/{document_id}/chunks/{chunk_id}", response_model=DocumentChunkRead)

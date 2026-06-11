@@ -5,7 +5,12 @@ from uuid import uuid4
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.ingestion.artifacts import read_extracted_text, write_chunks_artifact
+from app.ingestion.artifacts import (
+    document_artifact_dir,
+    read_extracted_text,
+    read_page_texts,
+    write_chunks_artifact,
+)
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 
@@ -28,6 +33,11 @@ class ChunkCandidate:
     char_start: int
     char_end: int
     estimated_token_count: int
+    page_number: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
+    source_kind: str | None = None
+    source_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +87,10 @@ def split_text_into_chunks(
     text: str,
     target_chars: int = TARGET_CHARS,
     overlap_chars: int = OVERLAP_CHARS,
+    base_offset: int = 0,
+    page_number: int | None = None,
+    source_kind: str | None = None,
+    source_path: str | None = None,
 ) -> list[ChunkCandidate]:
     if not text.strip():
         return []
@@ -96,9 +110,14 @@ def split_text_into_chunks(
                 ChunkCandidate(
                     chunk_index=len(chunks),
                     text=chunk_text,
-                    char_start=chunk_start,
-                    char_end=chunk_end,
+                    char_start=base_offset + chunk_start,
+                    char_end=base_offset + chunk_end,
                     estimated_token_count=estimate_token_count(chunk_text),
+                    page_number=page_number,
+                    page_start=chunk_start if page_number is not None else None,
+                    page_end=chunk_end if page_number is not None else None,
+                    source_kind=source_kind,
+                    source_path=source_path,
                 )
             )
 
@@ -116,12 +135,89 @@ def delete_chunks_for_document(db: Session, document_id: str) -> None:
     db.commit()
 
 
+def _page_text_base_offset(extracted_text: str, page_number: int, search_start: int) -> int | None:
+    marker = f"--- Page {page_number} ---\n"
+    marker_index = extracted_text.find(marker, search_start)
+    if marker_index < 0:
+        return None
+    return marker_index + len(marker)
+
+
+def _page_chunk_candidates(document_id: str, extracted_text: str) -> list[ChunkCandidate]:
+    page_texts = read_page_texts(document_id)
+    if not page_texts:
+        return []
+
+    candidates: list[ChunkCandidate] = []
+    search_start = 0
+    fallback_offset = 0
+    for page, page_path in page_texts:
+        page_text = page.text
+        if not page_text.strip():
+            continue
+
+        base_offset = _page_text_base_offset(extracted_text, page.page_number, search_start)
+        if base_offset is None:
+            base_offset = fallback_offset
+        else:
+            search_start = base_offset + len(page_text)
+
+        for candidate in split_text_into_chunks(
+            page_text,
+            base_offset=base_offset,
+            page_number=page.page_number,
+            source_kind="page_text",
+            source_path=str(page_path),
+        ):
+            candidates.append(
+                ChunkCandidate(
+                    chunk_index=len(candidates),
+                    text=candidate.text,
+                    char_start=candidate.char_start,
+                    char_end=candidate.char_end,
+                    estimated_token_count=candidate.estimated_token_count,
+                    page_number=candidate.page_number,
+                    page_start=candidate.page_start,
+                    page_end=candidate.page_end,
+                    source_kind=candidate.source_kind,
+                    source_path=candidate.source_path,
+                )
+            )
+
+        fallback_offset += len(page_text) + 2
+
+    return candidates
+
+
+def _document_chunk_candidates(document: Document, extracted_text: str) -> list[ChunkCandidate]:
+    page_candidates = _page_chunk_candidates(document.id, extracted_text)
+    if page_candidates:
+        return page_candidates
+
+    extracted_text_path = document_artifact_dir(document.id) / "extracted_text.txt"
+    return [
+        ChunkCandidate(
+            chunk_index=candidate.chunk_index,
+            text=candidate.text,
+            char_start=candidate.char_start,
+            char_end=candidate.char_end,
+            estimated_token_count=candidate.estimated_token_count,
+            page_number=None,
+            page_start=None,
+            page_end=None,
+            source_kind="extracted_text",
+            source_path=str(extracted_text_path),
+        )
+        for candidate in split_text_into_chunks(extracted_text)
+    ]
+
+
 def chunk_document(db: Session, document: Document) -> list[DocumentChunk]:
     extracted_text = read_extracted_text(document.id)
     if extracted_text is None:
         raise MissingExtractedTextError("Extracted text artifact not found. Run ingestion first.")
 
-    candidates = split_text_into_chunks(extracted_text)
+    candidates = _document_chunk_candidates(document, extracted_text)
     delete_chunks_for_document(db, document.id)
 
     chunks = [
@@ -132,6 +228,11 @@ def chunk_document(db: Session, document: Document) -> list[DocumentChunk]:
             text=candidate.text,
             char_start=candidate.char_start,
             char_end=candidate.char_end,
+            page_number=candidate.page_number,
+            page_start=candidate.page_start,
+            page_end=candidate.page_end,
+            source_kind=candidate.source_kind,
+            source_path=candidate.source_path,
             estimated_token_count=candidate.estimated_token_count,
         )
         for candidate in candidates
@@ -152,6 +253,11 @@ def chunk_document(db: Session, document: Document) -> list[DocumentChunk]:
                 "text": chunk.text,
                 "char_start": chunk.char_start,
                 "char_end": chunk.char_end,
+                "page_number": chunk.page_number,
+                "page_start": chunk.page_start,
+                "page_end": chunk.page_end,
+                "source_kind": chunk.source_kind,
+                "source_path": chunk.source_path,
                 "estimated_token_count": chunk.estimated_token_count,
                 "created_at": chunk.created_at.isoformat(),
             }

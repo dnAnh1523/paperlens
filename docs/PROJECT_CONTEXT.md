@@ -203,3 +203,16 @@ Implemented in feature branch `feature/m10-pdf-extraction-hardening`:
 - Text and Markdown ingestion remain supported with the same API behavior.
 
 Current limitation: PDF support is still text-layer only. OCR, page rendering, table extraction, figure extraction, equation parsing, and layout-aware chunking are future work.
+
+## Milestone 11 Progress: Page-Aware Chunking
+
+Implemented in feature branch `feature/m11-page-aware-chunking`:
+
+- `document_chunks` now supports nullable page number, page offsets, source kind, and source path metadata.
+- PDF chunks are created from page-level text artifacts when available.
+- Text and Markdown chunking keep the existing extracted-text behavior with null page metadata.
+- Search results, chat evidence rows, and source context responses expose page metadata when available.
+- Chat evidence cards and expanded source context display page labels for PDF-derived chunks.
+- Re-running chunking still deletes and recreates chunks cleanly.
+
+Current limitation: chunks are page-local for PDFs and do not intentionally span pages. There is still no OCR, page image rendering, layout-aware chunking, embeddings, vector database, or LLM call.

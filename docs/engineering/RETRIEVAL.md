@@ -30,6 +30,9 @@ data/storage/artifacts/documents/{document_id}/chunks.json
 - Sentence, newline, and space boundaries are used as fallbacks.
 - Empty chunks are skipped.
 - `char_start` and `char_end` refer to offsets in the extracted text artifact.
+- For PDFs with page artifacts, chunks are created page by page and include `page_number`,
+  `page_start`, `page_end`, `source_kind`, and `source_path`.
+- Text and Markdown chunks keep `page_number`, `page_start`, and `page_end` as `null`.
 - `estimated_token_count` is a simple character-based estimate.
 
 This policy is deterministic and designed for local testing, not final retrieval quality.
@@ -42,11 +45,11 @@ Search is exposed at:
 GET /search?query=...&limit=10
 ```
 
-Milestone 4 uses a SQLite `LIKE`-based lexical fallback instead of FTS5. This keeps setup reliable across local Windows 11 SQLite builds and avoids extra migration complexity. The search service tokenizes the query, filters chunks containing at least one query term, scores matches by term frequency with a small phrase-match bonus, and returns ranked chunks with document metadata.
+Milestone 4 uses a SQLite `LIKE`-based lexical fallback instead of FTS5. This keeps setup reliable across local Windows 11 SQLite builds and avoids extra migration complexity. The search service tokenizes the query, filters chunks containing at least one query term, scores matches by term frequency with a small phrase-match bonus, and returns ranked chunks with document metadata. Milestone 11 adds nullable page metadata to returned chunks when available.
 
 ## Chat evidence
 
-Milestone 5 reuses the same lexical search service for chat. When a user posts a message, the backend searches chunks with the message content, stores the retrieved chunk metadata as `message_evidence`, and returns a deterministic assistant message. Evidence rows keep `document_id`, `chunk_id`, rank, score, and an excerpt snapshot so chat history remains understandable even if chunks are later regenerated.
+Milestone 5 reuses the same lexical search service for chat. When a user posts a message, the backend searches chunks with the message content, stores the retrieved chunk metadata as `message_evidence`, and returns a deterministic assistant message. Evidence rows keep `document_id`, `chunk_id`, rank, score, and an excerpt snapshot so chat history remains understandable even if chunks are later regenerated. Milestone 11 also stores `page_number`, `page_start`, and `page_end` on evidence rows when the retrieved chunk has page metadata.
 
 ## Source context preview
 
@@ -56,7 +59,8 @@ Milestone 8 adds a read-only source context endpoint:
 GET /documents/{document_id}/chunks/{chunk_id}/context?before=1&after=1
 ```
 
-The response includes document metadata, the selected chunk, previous chunks, and next chunks. This lets
+The response includes document metadata, the selected chunk, previous chunks, and next chunks. Chunk
+objects include page metadata when available. This lets
 the frontend show exact chunk text and nearby context behind a chat evidence card without adding
 embeddings, vector search, or LLM calls.
 
@@ -66,6 +70,8 @@ Milestone 7 makes chunking available from the document library UI. Users can upl
 
 Milestone 8 lets users open an evidence card in chat to inspect the selected chunk and neighboring
 chunks from the source document.
+Milestone 11 adds page labels to those evidence and source-context views when chunks came from PDF page
+artifacts.
 
 ## Limitations
 

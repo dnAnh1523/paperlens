@@ -98,6 +98,8 @@ POST /documents/{document_id}/chunks
 ```
 
 Reads `data/storage/artifacts/documents/{document_id}/extracted_text.txt`, replaces existing chunks for the document, stores new rows in SQLite, writes `chunks.json`, and returns the chunks.
+For PDFs with `pages/page_*.txt` artifacts, chunks include nullable page metadata:
+`page_number`, `page_start`, `page_end`, `source_kind`, and `source_path`.
 
 ### List chunks
 
@@ -106,6 +108,8 @@ GET /documents/{document_id}/chunks?offset=0&limit=20
 ```
 
 Returns chunks ordered by `chunk_index`. `limit` must be between 1 and 100.
+Text and Markdown chunks return `null` page fields. PDF page-aware chunks return page metadata when
+available.
 
 ### Get one chunk
 
@@ -114,6 +118,7 @@ GET /documents/{document_id}/chunks/{chunk_id}
 ```
 
 Returns one chunk for the document.
+The response includes page metadata fields when available.
 
 ### Get chunk source context
 
@@ -123,6 +128,7 @@ GET /documents/{document_id}/chunks/{chunk_id}/context?before=1&after=1
 
 Returns document metadata, the selected chunk, previous chunks, and next chunks ordered by
 `chunk_index`. `before` and `after` must be between 0 and 5.
+Selected and neighboring chunks include page metadata when available.
 
 ### Delete document
 
@@ -140,7 +146,8 @@ Deletes document metadata, the local stored file directory, and derived artifact
 GET /search?query=local%20retrieval&limit=10
 ```
 
-Runs local lexical search across stored chunks and returns ranked matches with chunk text and document metadata. `limit` must be between 1 and 50.
+Runs local lexical search across stored chunks and returns ranked matches with chunk text, nullable page
+metadata, and document metadata. `limit` must be between 1 and 50.
 
 ## Conversations
 
@@ -200,7 +207,7 @@ Request body:
 }
 ```
 
-Stores the user message, searches local chunks, stores a deterministic assistant message, and stores evidence rows for retrieved chunks. `limit` must be between 0 and 20.
+Stores the user message, searches local chunks, stores a deterministic assistant message, and stores evidence rows for retrieved chunks. Evidence rows include `page_number`, `page_start`, and `page_end` when available. `limit` must be between 0 and 20.
 
 ### List messages
 
@@ -208,4 +215,5 @@ Stores the user message, searches local chunks, stores a deterministic assistant
 GET /conversations/{conversation_id}/messages
 ```
 
-Returns conversation messages ordered by creation time. Assistant messages include linked evidence rows.
+Returns conversation messages ordered by creation time. Assistant messages include linked evidence rows
+with nullable page metadata.

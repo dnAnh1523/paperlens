@@ -1,7 +1,10 @@
+import json
+
 from fastapi.testclient import TestClient
 from uuid import uuid4
 
 from app.main import app
+from app.ingestion.artifacts import document_artifact_dir
 
 
 def _term(prefix: str) -> str:
@@ -12,6 +15,31 @@ def _upload_text(client: TestClient, filename: str, text: str) -> dict[str, obje
     response = client.post(
         "/documents",
         files={"file": (filename, text.encode("utf-8"), "text/plain")},
+    )
+    assert response.status_code == 201
+    created = response.json()
+    assert created["status"] == "ready"
+    return created
+
+
+def _text_layer_pdf(pages: list[str]) -> bytes:
+    import fitz
+
+    pdf = fitz.open()
+    for text in pages:
+        page = pdf.new_page()
+        if text:
+            page.insert_text((72, 72), text, fontsize=11)
+    try:
+        return pdf.tobytes()
+    finally:
+        pdf.close()
+
+
+def _upload_pdf(client: TestClient, filename: str, pages: list[str]) -> dict[str, object]:
+    response = client.post(
+        "/documents",
+        files={"file": (filename, _text_layer_pdf(pages), "application/pdf")},
     )
     assert response.status_code == 201
     created = response.json()
@@ -57,8 +85,63 @@ def test_chunking_success_for_ingested_text_and_markdown() -> None:
         assert chunks[0]["chunk_index"] == 0
         assert chunks[0]["char_start"] >= 0
         assert chunks[0]["char_end"] > chunks[0]["char_start"]
+        assert chunks[0]["page_number"] is None
+        assert chunks[0]["page_start"] is None
+        assert chunks[0]["page_end"] is None
+        assert chunks[0]["source_kind"] == "extracted_text"
         assert chunks[0]["estimated_token_count"] > 0
         assert chunks[0]["text"]
+
+
+def test_pdf_page_artifact_chunking_stores_page_metadata() -> None:
+    client = TestClient(app)
+    first_term = _term("pdfpageonealpha")
+    second_term = _term("pdfpagetwobeta")
+    document = _upload_pdf(
+        client,
+        "page-aware.pdf",
+        [
+            f"Page one discusses methods with {first_term}.",
+            f"Page two explains retrieval results with {second_term}.",
+        ],
+    )
+
+    chunk_response = client.post(f"/documents/{document['id']}/chunks")
+    assert chunk_response.status_code == 200
+    chunks = chunk_response.json()
+    assert len(chunks) == 2
+    assert [chunk["page_number"] for chunk in chunks] == [1, 2]
+    assert chunks[0]["page_start"] == 0
+    assert chunks[0]["page_end"] > chunks[0]["page_start"]
+    assert chunks[0]["source_kind"] == "page_text"
+    assert chunks[0]["source_path"].endswith("page_001.txt")
+    assert chunks[1]["source_path"].endswith("page_002.txt")
+
+    list_response = client.get(f"/documents/{document['id']}/chunks", params={"limit": 10})
+    assert list_response.status_code == 200
+    listed_chunks = list_response.json()
+    assert [chunk["page_number"] for chunk in listed_chunks] == [1, 2]
+
+    artifact_path = document_artifact_dir(str(document["id"])) / "chunks.json"
+    artifact_chunks = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert [chunk["page_number"] for chunk in artifact_chunks] == [1, 2]
+    assert artifact_chunks[0]["source_kind"] == "page_text"
+
+    search_response = client.get("/search", params={"query": second_term, "limit": 5})
+    assert search_response.status_code == 200
+    search_payload = search_response.json()
+    assert search_payload["results"][0]["chunk"]["page_number"] == 2
+    assert second_term in search_payload["results"][0]["chunk"]["text"]
+
+    selected_chunk = chunks[1]
+    context_response = client.get(
+        f"/documents/{document['id']}/chunks/{selected_chunk['chunk_id']}/context",
+        params={"before": 1, "after": 1},
+    )
+    assert context_response.status_code == 200
+    context = context_response.json()
+    assert context["selected_chunk"]["page_number"] == 2
+    assert context["previous_chunks"][0]["page_number"] == 1
 
 
 def test_list_chunks_for_document_with_pagination() -> None:

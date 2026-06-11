@@ -49,6 +49,11 @@ export type DocumentChunk = {
   text: string;
   char_start: number;
   char_end: number;
+  page_number: number | null;
+  page_start: number | null;
+  page_end: number | null;
+  source_kind: string | null;
+  source_path: string | null;
   estimated_token_count: number;
   created_at: string;
 };
@@ -88,6 +93,9 @@ export type MessageEvidence = {
   rank: number;
   score: number;
   excerpt: string;
+  page_number: number | null;
+  page_start: number | null;
+  page_end: number | null;
 };
 
 export type ChatMessage = {

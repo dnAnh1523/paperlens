@@ -11,7 +11,7 @@ from app.models.document import Document
 class IngestionJobStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
-    SUCCEEDED = "succeeded"
+    COMPLETED = "completed"
     FAILED = "failed"
 
 

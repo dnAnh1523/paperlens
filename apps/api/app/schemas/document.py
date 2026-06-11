@@ -20,6 +20,13 @@ class IngestionJobRead(BaseModel):
     finished_at: datetime | None
 
 
+class IngestionTextPreviewRead(BaseModel):
+    document_id: str
+    text: str
+    total_characters: int
+    preview_characters: int
+
+
 class DocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

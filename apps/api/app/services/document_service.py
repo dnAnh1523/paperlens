@@ -8,8 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.ingestion.artifacts import clear_document_artifacts
 from app.models.document import Document, DocumentStatus
 from app.models.ingestion_job import IngestionJob, IngestionJobStatus
+from app.services.ingestion_service import run_ingestion
 
 SUPPORTED_CONTENT_TYPES = {
     "application/pdf",
@@ -89,6 +91,8 @@ def create_document_from_upload(db: Session, upload: UploadFile) -> Document:
     db.add(document)
     db.commit()
     db.refresh(document)
+    run_ingestion(db, document)
+    db.refresh(document)
     return document
 
 
@@ -103,7 +107,9 @@ def get_document(db: Session, document_id: str) -> Document | None:
 def delete_document(db: Session, document: Document) -> None:
     storage_path = Path(document.storage_path)
     document_dir = storage_path.parent
+    document_id = document.id
     db.delete(document)
     db.commit()
     if document_dir.exists() and document_dir.is_dir():
         shutil.rmtree(document_dir, ignore_errors=True)
+    clear_document_artifacts(document_id)

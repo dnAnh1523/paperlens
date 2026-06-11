@@ -1,13 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.config import settings
+from app.db.session import init_db
 
 
 def create_app() -> FastAPI:
     settings.storage_path.mkdir(parents=True, exist_ok=True)
     settings.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+    init_db()
 
     app = FastAPI(
         title="PaperLens API",
@@ -22,6 +25,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router)
+    app.include_router(documents_router)
     return app
 
 

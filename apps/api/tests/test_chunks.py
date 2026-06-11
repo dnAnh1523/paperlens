@@ -91,6 +91,41 @@ def test_get_single_chunk() -> None:
     assert chunk["text"] == created_chunk["text"]
 
 
+def test_get_chunk_context_includes_document_and_neighbor_chunks() -> None:
+    client = TestClient(app)
+    document = _upload_text(client, "context-chunks.txt", _long_text(_term("chunkcontexteta")))
+    chunk_response = client.post(f"/documents/{document['id']}/chunks")
+    assert chunk_response.status_code == 200
+    created_chunks = chunk_response.json()
+    assert len(created_chunks) >= 3
+    selected_chunk = created_chunks[1]
+
+    context_response = client.get(
+        f"/documents/{document['id']}/chunks/{selected_chunk['chunk_id']}/context",
+        params={"before": 1, "after": 1},
+    )
+    assert context_response.status_code == 200
+    context = context_response.json()
+    assert context["document"]["id"] == document["id"]
+    assert context["document"]["original_filename"] == "context-chunks.txt"
+    assert context["selected_chunk"]["chunk_id"] == selected_chunk["chunk_id"]
+    assert context["selected_chunk"]["chunk_index"] == 1
+    assert context["selected_chunk"]["char_start"] == selected_chunk["char_start"]
+    assert len(context["previous_chunks"]) == 1
+    assert context["previous_chunks"][0]["chunk_index"] == 0
+    assert len(context["next_chunks"]) == 1
+    assert context["next_chunks"][0]["chunk_index"] == 2
+
+
+def test_get_chunk_context_missing_chunk_returns_not_found() -> None:
+    client = TestClient(app)
+    document = _upload_text(client, "missing-context-chunk.txt", _long_text(_term("chunkcontexttheta")))
+
+    context_response = client.get(f"/documents/{document['id']}/chunks/not-a-real-chunk/context")
+    assert context_response.status_code == 404
+    assert context_response.json()["detail"] == "Chunk not found"
+
+
 def test_rerun_chunking_replaces_old_chunks_without_duplicates() -> None:
     client = TestClient(app)
     document = _upload_text(client, "rerun-chunks.txt", _long_text(_term("chunkrerunepsilon")))

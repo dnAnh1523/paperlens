@@ -10,7 +10,7 @@ As a user, I want to ask questions in a conversation so that I can understand cl
 
 ## Inspect evidence
 
-As a user, I want to inspect evidence snippets and document/chunk references under an answer so that I can verify the system's reasoning.
+As a user, I want to inspect evidence snippets, document/chunk references, full source chunk text, and nearby context under an answer so that I can verify the system's reasoning.
 
 ## Manage conversations
 

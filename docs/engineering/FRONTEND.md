@@ -37,6 +37,18 @@ The document library now supports the full local happy path from the browser:
 
 This keeps the backend endpoints explicit while removing the need for manual curl commands during normal local testing.
 
+## Milestone 8 Source Evidence Preview
+
+Assistant evidence cards are now expandable. When a user opens a card, the UI calls:
+
+```http
+GET /documents/{document_id}/chunks/{chunk_id}/context
+```
+
+The expanded card shows the evidence rank, score, excerpt snapshot, document filename when available,
+the selected chunk metadata, full chunk text, and nearby previous/next chunks. Context is loaded lazily
+so normal chat history remains lightweight.
+
 ## Configuration
 
 The frontend reads `NEXT_PUBLIC_API_BASE_URL` when provided. If absent, it defaults to `http://127.0.0.1:8000`.
@@ -51,4 +63,4 @@ $env:NPM_CONFIG_CACHE="F:\paperlens-npm-cache"; npm install
 
 - No authentication.
 - Ingestion and chunking still run synchronously through API requests.
-- No source preview or PDF page viewer yet.
+- No PDF page viewer yet.

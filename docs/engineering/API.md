@@ -108,6 +108,15 @@ GET /documents/{document_id}/chunks/{chunk_id}
 
 Returns one chunk for the document.
 
+### Get chunk source context
+
+```http
+GET /documents/{document_id}/chunks/{chunk_id}/context?before=1&after=1
+```
+
+Returns document metadata, the selected chunk, previous chunks, and next chunks ordered by
+`chunk_index`. `before` and `after` must be between 0 and 5.
+
 ### Delete document
 
 ```http

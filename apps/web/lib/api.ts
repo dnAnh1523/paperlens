@@ -53,6 +53,24 @@ export type DocumentChunk = {
   created_at: string;
 };
 
+export type ChunkContextDocument = {
+  id: string;
+  title: string;
+  original_filename: string;
+  content_type: string;
+  file_size_bytes: number;
+  status: DocumentStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentChunkContext = {
+  document: ChunkContextDocument;
+  selected_chunk: DocumentChunk;
+  previous_chunks: DocumentChunk[];
+  next_chunks: DocumentChunk[];
+};
+
 export type Conversation = {
   conversation_id: string;
   title: string;
@@ -179,6 +197,19 @@ export async function fetchDocumentChunks(documentId: string, limit = 100): Prom
     cache: "no-store",
   });
   return parseJsonResponse<DocumentChunk[]>(response);
+}
+
+export async function fetchDocumentChunkContext(
+  documentId: string,
+  chunkId: string,
+  before = 1,
+  after = 1,
+): Promise<DocumentChunkContext> {
+  const params = new URLSearchParams({ before: String(before), after: String(after) });
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}/chunks/${chunkId}/context?${params}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<DocumentChunkContext>(response);
 }
 
 export async function createConversation(title?: string): Promise<Conversation> {

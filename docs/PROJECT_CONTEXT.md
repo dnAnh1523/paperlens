@@ -166,3 +166,14 @@ Implemented in feature branch `feature/m7-e2e-local-workflow`:
 
 Current limitation: preparation is still synchronous and best suited to small local `.txt`, `.md`, and text-layer `.pdf` files.
 
+## Milestone 8 Progress: Source Evidence Preview
+
+Implemented in feature branch `feature/m8-source-evidence-preview`:
+
+- Read-only chunk context endpoint for selected chunk plus neighboring chunks.
+- Context responses include document metadata, chunk indexes, source offsets, estimated token counts, and full chunk text.
+- Chat evidence cards expand in the browser and lazy-load source context on demand.
+- Evidence cards continue to show stored excerpt snapshots even if live source context cannot be loaded later.
+- No PDF page rendering, vector database, embedding model, LLM call, Docker service, or paid API integration.
+
+Current limitation: source preview shows extracted text chunks only. It does not yet render original PDF pages or highlight positions in the source file.

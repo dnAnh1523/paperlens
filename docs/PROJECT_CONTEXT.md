@@ -216,3 +216,15 @@ Implemented in feature branch `feature/m11-page-aware-chunking`:
 - Re-running chunking still deletes and recreates chunks cleanly.
 
 Current limitation: chunks are page-local for PDFs and do not intentionally span pages. There is still no OCR, page image rendering, layout-aware chunking, embeddings, vector database, or LLM call.
+
+## Milestone 12 Progress: Stable Evidence Snapshots
+
+Implemented in feature branch `feature/m12-stable-evidence-snapshots`:
+
+- Chat evidence rows now preserve full answer-time source snapshots, including full chunk text, document title/filename, chunk index, character offsets, page offsets, and estimated token count.
+- Assistant message evidence responses include the snapshot fields so the frontend can render historical evidence consistently.
+- A message evidence source endpoint returns live chunk context when the chunk still exists and falls back to the stored evidence snapshot when chunks are regenerated or deleted.
+- Chat evidence cards mark whether the expanded source preview is live source context or a snapshot fallback.
+- Historical evidence remains inspectable after re-running chunking or deleting the source document metadata.
+
+Current limitation: snapshot fallback shows captured extracted text only. It does not render original PDF pages, highlight page coordinates, perform OCR, or reconstruct neighboring chunks after the source chunk is gone.

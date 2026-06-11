@@ -5,21 +5,21 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ChatMessage,
   Conversation,
-  DocumentChunk,
-  DocumentChunkContext,
+  EvidenceSourceChunk,
+  MessageEvidenceSource,
   MessageEvidence,
   createConversation,
   deleteConversation,
   fetchConversationMessages,
   fetchConversations,
-  fetchDocumentChunkContext,
+  fetchMessageEvidenceSource,
   postConversationMessage,
 } from "../../lib/api";
 
 type EvidencePreviewState = {
   isOpen: boolean;
   isLoading?: boolean;
-  context?: DocumentChunkContext;
+  source?: MessageEvidenceSource;
   error?: string;
 };
 
@@ -38,11 +38,23 @@ function getMessageLabel(message: ChatMessage): string {
   return message.role === "user" ? "You" : "PaperLens";
 }
 
-function formatChunkLocation(chunk: DocumentChunk): string {
-  if (chunk.page_number !== null) {
-    return `Page ${chunk.page_number}, chunk ${chunk.chunk_index}`;
+function formatOptionalRange(start: number | null, end: number | null): string {
+  if (start === null || end === null) {
+    return "N/A";
   }
-  return `Chunk ${chunk.chunk_index}`;
+  return `${start}-${end}`;
+}
+
+function formatOptionalValue(value: number | null): string {
+  return value === null ? "N/A" : String(value);
+}
+
+function formatChunkLocation(chunk: EvidenceSourceChunk): string {
+  const chunkIndex = chunk.chunk_index === null ? "N/A" : chunk.chunk_index;
+  if (chunk.page_number !== null) {
+    return `Page ${chunk.page_number}, chunk ${chunkIndex}`;
+  }
+  return `Chunk ${chunkIndex}`;
 }
 
 function SourceContextChunk({
@@ -50,7 +62,7 @@ function SourceContextChunk({
   label,
   isSelected = false,
 }: {
-  chunk: DocumentChunk;
+  chunk: EvidenceSourceChunk;
   label: string;
   isSelected?: boolean;
 }) {
@@ -206,7 +218,7 @@ export function ChatWorkspace() {
     }
   }
 
-  async function handleToggleEvidencePreview(evidence: MessageEvidence) {
+  async function handleToggleEvidencePreview(message: ChatMessage, evidence: MessageEvidence) {
     const currentPreview = evidencePreviews[evidence.evidence_id];
     if (currentPreview?.isOpen) {
       setEvidencePreviews((currentPreviews) => ({
@@ -224,22 +236,26 @@ export function ChatWorkspace() {
       [evidence.evidence_id]: {
         ...(currentPreviews[evidence.evidence_id] ?? {}),
         isOpen: true,
-        isLoading: !currentPreviews[evidence.evidence_id]?.context,
+        isLoading: !currentPreviews[evidence.evidence_id]?.source,
         error: undefined,
       },
     }));
 
-    if (currentPreview?.context) {
+    if (currentPreview?.source) {
       return;
     }
 
     try {
-      const context = await fetchDocumentChunkContext(evidence.document_id, evidence.chunk_id);
+      const source = await fetchMessageEvidenceSource(
+        message.conversation_id,
+        message.message_id,
+        evidence.evidence_id,
+      );
       setEvidencePreviews((currentPreviews) => ({
         ...currentPreviews,
         [evidence.evidence_id]: {
           ...(currentPreviews[evidence.evidence_id] ?? {}),
-          context,
+          source,
           isLoading: false,
         },
       }));
@@ -293,10 +309,10 @@ export function ChatWorkspace() {
     <section className="workspace chatWorkspace" aria-label="PaperLens chat workspace">
       <div className="workspaceHeader">
         <div>
-          <p className="eyebrow">Milestone 11</p>
+          <p className="eyebrow">Milestone 12</p>
           <h2>Evidence chat</h2>
           <p className="sectionText">
-            Ask over chunked local documents, then open evidence cards to inspect page-aware source context.
+            Ask over chunked local documents, then open evidence cards to inspect live context or saved snapshots.
           </p>
         </div>
         <div className="statusPill">
@@ -380,8 +396,11 @@ export function ChatWorkspace() {
                   <div className="evidenceList" aria-label="Retrieved evidence">
                     {message.evidence.map((evidence) => {
                       const preview = evidencePreviews[evidence.evidence_id];
-                      const context = preview?.context;
-                      const documentLabel = context?.document.original_filename ?? evidence.document_id.slice(0, 8);
+                      const source = preview?.source;
+                      const documentLabel =
+                        source?.document.original_filename ??
+                        evidence.document_filename_snapshot ??
+                        evidence.document_id.slice(0, 8);
 
                       return (
                         <article
@@ -391,7 +410,7 @@ export function ChatWorkspace() {
                           <button
                             type="button"
                             className="evidenceSummary"
-                            onClick={() => void handleToggleEvidencePreview(evidence)}
+                            onClick={() => void handleToggleEvidencePreview(message, evidence)}
                             aria-expanded={Boolean(preview?.isOpen)}
                             aria-controls={`evidence-context-${evidence.evidence_id}`}
                           >
@@ -424,52 +443,70 @@ export function ChatWorkspace() {
                               ) : null}
                               {preview.error ? <div className="alert error">{preview.error}</div> : null}
 
-                              {context ? (
+                              {source ? (
                                 <>
+                                  <div className="sourceStateLine">
+                                    <span
+                                      className={
+                                        source.source_status === "live"
+                                          ? "sourceStatusBadge live"
+                                          : "sourceStatusBadge snapshot"
+                                      }
+                                    >
+                                      {source.source_status === "live"
+                                        ? "Live source context"
+                                        : "Snapshot fallback"}
+                                    </span>
+                                    {source.note ? <p className="sourcePreviewNote">{source.note}</p> : null}
+                                  </div>
+
                                   <div className="sourcePreviewHeader">
                                     <div>
-                                      <strong>{context.document.original_filename}</strong>
-                                      <span>{context.document.title}</span>
+                                      <strong>{source.document.original_filename}</strong>
+                                      <span>{source.document.title}</span>
                                     </div>
-                                    <span>{formatChunkLocation(context.selected_chunk)}</span>
+                                    <span>{formatChunkLocation(source.selected_chunk)}</span>
                                   </div>
 
                                   <dl className="sourceMetaGrid">
                                     <div>
                                       <dt>Document id</dt>
-                                      <dd>{context.document.id.slice(0, 8)}</dd>
+                                      <dd>{source.document.id.slice(0, 8)}</dd>
                                     </div>
                                     <div>
                                       <dt>Chunk id</dt>
-                                      <dd>{context.selected_chunk.chunk_id.slice(0, 8)}</dd>
+                                      <dd>{source.selected_chunk.chunk_id.slice(0, 8)}</dd>
                                     </div>
                                     <div>
                                       <dt>Page</dt>
-                                      <dd>{context.selected_chunk.page_number ?? "N/A"}</dd>
+                                      <dd>{formatOptionalValue(source.selected_chunk.page_number)}</dd>
                                     </div>
                                     <div>
                                       <dt>Page offsets</dt>
                                       <dd>
-                                        {context.selected_chunk.page_start !== null &&
-                                        context.selected_chunk.page_end !== null
-                                          ? `${context.selected_chunk.page_start}-${context.selected_chunk.page_end}`
-                                          : "N/A"}
+                                        {formatOptionalRange(
+                                          source.selected_chunk.page_start,
+                                          source.selected_chunk.page_end,
+                                        )}
                                       </dd>
                                     </div>
                                     <div>
                                       <dt>Offsets</dt>
                                       <dd>
-                                        {context.selected_chunk.char_start}-{context.selected_chunk.char_end}
+                                        {formatOptionalRange(
+                                          source.selected_chunk.char_start,
+                                          source.selected_chunk.char_end,
+                                        )}
                                       </dd>
                                     </div>
                                     <div>
                                       <dt>Estimated tokens</dt>
-                                      <dd>{context.selected_chunk.estimated_token_count}</dd>
+                                      <dd>{formatOptionalValue(source.selected_chunk.estimated_token_count)}</dd>
                                     </div>
                                   </dl>
 
                                   <div className="sourceContextList">
-                                    {context.previous_chunks.map((chunk) => (
+                                    {source.previous_chunks.map((chunk) => (
                                       <SourceContextChunk
                                         chunk={chunk}
                                         label="Previous context"
@@ -477,14 +514,14 @@ export function ChatWorkspace() {
                                       />
                                     ))}
                                     <SourceContextChunk
-                                      chunk={context.selected_chunk}
+                                      chunk={source.selected_chunk}
                                       label="Retrieved chunk"
                                       isSelected
                                     />
-                                    {context.next_chunks.map((chunk) => (
+                                    {source.next_chunks.map((chunk) => (
                                       <SourceContextChunk chunk={chunk} label="Next context" key={chunk.chunk_id} />
                                     ))}
-                                    {context.previous_chunks.length === 0 && context.next_chunks.length === 0 ? (
+                                    {source.previous_chunks.length === 0 && source.next_chunks.length === 0 ? (
                                       <p className="sourcePreviewStatus">No neighboring chunks are available.</p>
                                     ) : null}
                                   </div>

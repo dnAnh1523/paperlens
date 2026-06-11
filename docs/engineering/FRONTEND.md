@@ -49,6 +49,18 @@ The expanded card shows the evidence rank, score, excerpt snapshot, document fil
 the selected chunk metadata, full chunk text, and nearby previous/next chunks. Context is loaded lazily
 so normal chat history remains lightweight.
 
+## Milestone 12 Stable Evidence Preview
+
+Chat evidence cards now call the message evidence source endpoint:
+
+```http
+GET /conversations/{conversation_id}/messages/{message_id}/evidence/{evidence_id}/source
+```
+
+The expanded card marks live source context when the current chunk still exists. If chunks were
+regenerated or deleted, the card stays expandable and shows the stored snapshot captured when the
+assistant answer was created.
+
 ## Configuration
 
 The frontend reads `NEXT_PUBLIC_API_BASE_URL` when provided. If absent, it defaults to `http://127.0.0.1:8000`.

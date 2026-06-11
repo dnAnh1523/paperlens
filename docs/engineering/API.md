@@ -207,7 +207,11 @@ Request body:
 }
 ```
 
-Stores the user message, searches local chunks, stores a deterministic assistant message, and stores evidence rows for retrieved chunks. Evidence rows include `page_number`, `page_start`, and `page_end` when available. `limit` must be between 0 and 20.
+Stores the user message, searches local chunks, stores a deterministic assistant message, and stores
+evidence rows for retrieved chunks. Evidence rows include answer-time snapshot fields:
+`excerpt`, `full_chunk_text_snapshot`, `document_title_snapshot`, `document_filename_snapshot`,
+`chunk_index_snapshot`, `char_start_snapshot`, `char_end_snapshot`, `page_number`, `page_start`,
+`page_end`, and `estimated_token_count_snapshot`. `limit` must be between 0 and 20.
 
 ### List messages
 
@@ -216,4 +220,108 @@ GET /conversations/{conversation_id}/messages
 ```
 
 Returns conversation messages ordered by creation time. Assistant messages include linked evidence rows
-with nullable page metadata.
+with nullable page metadata and stable evidence snapshot fields.
+
+### Get message evidence source
+
+```http
+GET /conversations/{conversation_id}/messages/{message_id}/evidence/{evidence_id}/source
+```
+
+Returns the source context for a stored assistant evidence row. When the original chunk still exists,
+the response is marked live and includes the selected chunk plus neighboring chunks:
+
+```json
+{
+  "source_status": "live",
+  "is_stale": false,
+  "note": null,
+  "evidence": {
+    "evidence_id": "evidence-uuid",
+    "message_id": "assistant-message-uuid",
+    "document_id": "document-uuid",
+    "chunk_id": "chunk-uuid",
+    "rank": 1,
+    "score": 3.5,
+    "excerpt": "retrieved chunk text",
+    "full_chunk_text_snapshot": "retrieved chunk text",
+    "document_title_snapshot": "paper",
+    "document_filename_snapshot": "paper.pdf",
+    "chunk_index_snapshot": 2,
+    "char_start_snapshot": 1200,
+    "char_end_snapshot": 2400,
+    "page_number": 3,
+    "page_start": 10,
+    "page_end": 1210,
+    "estimated_token_count_snapshot": 300
+  },
+  "document": {
+    "id": "document-uuid",
+    "title": "paper",
+    "original_filename": "paper.pdf"
+  },
+  "selected_chunk": {
+    "chunk_id": "chunk-uuid",
+    "document_id": "document-uuid",
+    "chunk_index": 2,
+    "text": "retrieved chunk text",
+    "char_start": 1200,
+    "char_end": 2400,
+    "page_number": 3,
+    "page_start": 10,
+    "page_end": 1210,
+    "estimated_token_count": 300
+  },
+  "previous_chunks": [],
+  "next_chunks": []
+}
+```
+
+When the chunk was regenerated or deleted, the response is marked stale and returns the stored evidence
+snapshot instead of failing the preview:
+
+```json
+{
+  "source_status": "snapshot",
+  "is_stale": true,
+  "note": "This chunk was regenerated or deleted. Showing the evidence snapshot captured when the answer was created.",
+  "evidence": {
+    "evidence_id": "evidence-uuid",
+    "message_id": "assistant-message-uuid",
+    "document_id": "document-uuid",
+    "chunk_id": "old-chunk-uuid",
+    "rank": 1,
+    "score": 3.5,
+    "excerpt": "captured excerpt",
+    "full_chunk_text_snapshot": "captured full chunk text",
+    "document_title_snapshot": "paper",
+    "document_filename_snapshot": "paper.pdf",
+    "chunk_index_snapshot": 2,
+    "char_start_snapshot": 1200,
+    "char_end_snapshot": 2400,
+    "page_number": 3,
+    "page_start": 10,
+    "page_end": 1210,
+    "estimated_token_count_snapshot": 300
+  },
+  "document": {
+    "id": "document-uuid",
+    "title": "paper",
+    "original_filename": "paper.pdf"
+  },
+  "selected_chunk": {
+    "chunk_id": "old-chunk-uuid",
+    "document_id": "document-uuid",
+    "chunk_index": 2,
+    "text": "captured full chunk text",
+    "char_start": 1200,
+    "char_end": 2400,
+    "page_number": 3,
+    "page_start": 10,
+    "page_end": 1210,
+    "estimated_token_count": 300
+  },
+  "previous_chunks": [],
+  "next_chunks": []
+}
+```

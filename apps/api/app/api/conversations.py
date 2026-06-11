@@ -2,19 +2,93 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.conversation import Conversation, Message
-from app.schemas.chat import ChatTurnRead, ConversationCreate, ConversationRead, MessageCreate, MessageRead
+from app.models.conversation import Conversation, Message, MessageEvidence
+from app.models.document import Document
+from app.models.document_chunk import DocumentChunk
+from app.schemas.chat import (
+    ChatTurnRead,
+    ConversationCreate,
+    ConversationRead,
+    EvidenceSourceChunkRead,
+    EvidenceSourceDocumentRead,
+    MessageCreate,
+    MessageEvidenceRead,
+    MessageEvidenceSourceRead,
+    MessageRead,
+)
+from app.services.chunking_service import get_document_chunk_context
 from app.services.chat_service import (
     DEFAULT_EVIDENCE_LIMIT,
     create_conversation,
     delete_conversation,
     get_conversation,
+    get_message_evidence,
     list_conversations,
     list_messages,
     post_user_message,
 )
+from app.services.document_service import get_document
+
+STALE_EVIDENCE_NOTE = (
+    "This chunk was regenerated or deleted. Showing the evidence snapshot captured when the "
+    "answer was created."
+)
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
+
+
+def _document_source_read(document: Document | None, evidence: MessageEvidence) -> EvidenceSourceDocumentRead:
+    return EvidenceSourceDocumentRead(
+        id=evidence.document_id,
+        title=(
+            document.title
+            if document is not None
+            else evidence.document_title_snapshot or evidence.document_id
+        ),
+        original_filename=(
+            document.original_filename
+            if document is not None
+            else evidence.document_filename_snapshot or "Unknown document"
+        ),
+    )
+
+
+def _document_snapshot_read(evidence: MessageEvidence) -> EvidenceSourceDocumentRead:
+    return EvidenceSourceDocumentRead(
+        id=evidence.document_id,
+        title=evidence.document_title_snapshot or evidence.document_id,
+        original_filename=evidence.document_filename_snapshot or "Unknown document",
+    )
+
+
+def _live_chunk_source_read(chunk: DocumentChunk) -> EvidenceSourceChunkRead:
+    return EvidenceSourceChunkRead(
+        chunk_id=chunk.chunk_id,
+        document_id=chunk.document_id,
+        chunk_index=chunk.chunk_index,
+        text=chunk.text,
+        char_start=chunk.char_start,
+        char_end=chunk.char_end,
+        page_number=chunk.page_number,
+        page_start=chunk.page_start,
+        page_end=chunk.page_end,
+        estimated_token_count=chunk.estimated_token_count,
+    )
+
+
+def _snapshot_chunk_source_read(evidence: MessageEvidence) -> EvidenceSourceChunkRead:
+    return EvidenceSourceChunkRead(
+        chunk_id=evidence.chunk_id,
+        document_id=evidence.document_id,
+        chunk_index=evidence.chunk_index_snapshot,
+        text=evidence.full_chunk_text_snapshot or evidence.excerpt,
+        char_start=evidence.char_start_snapshot,
+        char_end=evidence.char_end_snapshot,
+        page_number=evidence.page_number,
+        page_start=evidence.page_start,
+        page_end=evidence.page_end,
+        estimated_token_count=evidence.estimated_token_count_snapshot,
+    )
 
 
 @router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
@@ -78,3 +152,54 @@ def read_conversation_messages(
     if conversation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     return list_messages(db, conversation_id)
+
+
+@router.get(
+    "/{conversation_id}/messages/{message_id}/evidence/{evidence_id}/source",
+    response_model=MessageEvidenceSourceRead,
+)
+def read_message_evidence_source(
+    conversation_id: str,
+    message_id: str,
+    evidence_id: str,
+    db: Session = Depends(get_db),
+) -> MessageEvidenceSourceRead:
+    evidence = get_message_evidence(
+        db,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        evidence_id=evidence_id,
+    )
+    if evidence is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evidence not found")
+
+    document = get_document(db, evidence.document_id)
+    context = get_document_chunk_context(
+        db,
+        document_id=evidence.document_id,
+        chunk_id=evidence.chunk_id,
+        before=1,
+        after=1,
+    )
+    if context is not None and document is not None:
+        return MessageEvidenceSourceRead(
+            source_status="live",
+            is_stale=False,
+            note=None,
+            evidence=MessageEvidenceRead.model_validate(evidence),
+            document=_document_source_read(document, evidence),
+            selected_chunk=_live_chunk_source_read(context.selected_chunk),
+            previous_chunks=[_live_chunk_source_read(chunk) for chunk in context.previous_chunks],
+            next_chunks=[_live_chunk_source_read(chunk) for chunk in context.next_chunks],
+        )
+
+    return MessageEvidenceSourceRead(
+        source_status="snapshot",
+        is_stale=True,
+        note=STALE_EVIDENCE_NOTE,
+        evidence=MessageEvidenceRead.model_validate(evidence),
+        document=_document_snapshot_read(evidence),
+        selected_chunk=_snapshot_chunk_source_read(evidence),
+        previous_chunks=[],
+        next_chunks=[],
+    )

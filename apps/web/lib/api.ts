@@ -76,6 +76,25 @@ export type DocumentChunkContext = {
   next_chunks: DocumentChunk[];
 };
 
+export type EvidenceSourceDocument = {
+  id: string;
+  title: string;
+  original_filename: string;
+};
+
+export type EvidenceSourceChunk = {
+  chunk_id: string;
+  document_id: string;
+  chunk_index: number | null;
+  text: string;
+  char_start: number | null;
+  char_end: number | null;
+  page_number: number | null;
+  page_start: number | null;
+  page_end: number | null;
+  estimated_token_count: number | null;
+};
+
 export type Conversation = {
   conversation_id: string;
   title: string;
@@ -93,9 +112,27 @@ export type MessageEvidence = {
   rank: number;
   score: number;
   excerpt: string;
+  full_chunk_text_snapshot: string | null;
+  document_title_snapshot: string | null;
+  document_filename_snapshot: string | null;
+  chunk_index_snapshot: number | null;
+  char_start_snapshot: number | null;
+  char_end_snapshot: number | null;
   page_number: number | null;
   page_start: number | null;
   page_end: number | null;
+  estimated_token_count_snapshot: number | null;
+};
+
+export type MessageEvidenceSource = {
+  source_status: "live" | "snapshot";
+  is_stale: boolean;
+  note: string | null;
+  evidence: MessageEvidence;
+  document: EvidenceSourceDocument;
+  selected_chunk: EvidenceSourceChunk;
+  previous_chunks: EvidenceSourceChunk[];
+  next_chunks: EvidenceSourceChunk[];
 };
 
 export type ChatMessage = {
@@ -218,6 +255,18 @@ export async function fetchDocumentChunkContext(
     cache: "no-store",
   });
   return parseJsonResponse<DocumentChunkContext>(response);
+}
+
+export async function fetchMessageEvidenceSource(
+  conversationId: string,
+  messageId: string,
+  evidenceId: string,
+): Promise<MessageEvidenceSource> {
+  const response = await fetch(
+    `${API_BASE_URL}/conversations/${conversationId}/messages/${messageId}/evidence/${evidenceId}/source`,
+    { cache: "no-store" },
+  );
+  return parseJsonResponse<MessageEvidenceSource>(response);
 }
 
 export async function createConversation(title?: string): Promise<Conversation> {

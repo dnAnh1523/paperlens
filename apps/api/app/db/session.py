@@ -45,9 +45,16 @@ def init_db() -> None:
     _ensure_sqlite_columns(
         "message_evidence",
         {
+            "full_chunk_text_snapshot": "TEXT",
+            "document_title_snapshot": "VARCHAR(512)",
+            "document_filename_snapshot": "VARCHAR(512)",
+            "chunk_index_snapshot": "INTEGER",
+            "char_start_snapshot": "INTEGER",
+            "char_end_snapshot": "INTEGER",
             "page_number": "INTEGER",
             "page_start": "INTEGER",
             "page_end": "INTEGER",
+            "estimated_token_count_snapshot": "INTEGER",
         },
     )
 

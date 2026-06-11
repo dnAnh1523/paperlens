@@ -12,6 +12,10 @@ As a user, I want to ask questions in a conversation so that I can understand cl
 
 As a user, I want to inspect evidence snippets, page numbers, document/chunk references, full source chunk text, and nearby context under an answer so that I can verify the system's reasoning.
 
+## Reopen historical evidence
+
+As a user, I want old evidence cards to remain inspectable after a document is re-chunked or deleted so that past answers still show the source snapshot that was used when the answer was created.
+
 ## Manage conversations
 
 As a user, I want to create, select, and delete conversations so that I can keep separate research questions organized.

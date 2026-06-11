@@ -1,5 +1,271 @@
-class EvalRunner:
-    """Runs baseline and system evaluations."""
+from __future__ import annotations
 
-    def run(self, eval_set_path: str) -> dict:
-        raise NotImplementedError("Evaluation runner is not implemented yet.")
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.services.retrieval_service import search_chunks
+
+
+@dataclass(frozen=True)
+class EvalCase:
+    case_id: str
+    question: str
+    expected_terms: list[str]
+    expected_answer_terms: list[str]
+    expected_document_filename: str | None = None
+    expected_chunk_text_contains: list[str] | None = None
+    notes: str | None = None
+
+    @property
+    def required_chunk_terms(self) -> list[str]:
+        if self.expected_chunk_text_contains:
+            return self.expected_chunk_text_contains
+        if self.expected_terms:
+            return self.expected_terms
+        return self.expected_answer_terms
+
+
+@dataclass(frozen=True)
+class EvalDataset:
+    name: str
+    description: str | None
+    default_k: int
+    cases: list[EvalCase]
+
+
+@dataclass(frozen=True)
+class RetrievedEvidence:
+    rank: int
+    score: float
+    document_id: str
+    document_title: str
+    document_filename: str
+    chunk_id: str
+    chunk_index: int
+    chunk_text: str
+
+
+@dataclass(frozen=True)
+class CaseEvaluationResult:
+    case_id: str
+    question: str
+    hit: bool
+    hit_rank: int | None
+    reciprocal_rank: float
+    result_count: int
+    no_results: bool
+    matched_chunk_id: str | None
+    matched_document_filename: str | None
+    notes: str | None
+    retrieved: list[RetrievedEvidence]
+
+
+@dataclass(frozen=True)
+class EvaluationSummary:
+    dataset_name: str
+    total_cases: int
+    k: int
+    hits: int
+    hit_at_k: float
+    mean_reciprocal_rank: float
+    no_result_queries: int
+
+
+@dataclass(frozen=True)
+class EvaluationReport:
+    summary: EvaluationSummary
+    results: list[CaseEvaluationResult]
+
+
+def _coerce_string_list(value: Any, field_name: str) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return value
+    raise ValueError(f"{field_name} must be a string or list of strings.")
+
+
+def load_dataset(dataset_path: str | Path) -> EvalDataset:
+    path = Path(dataset_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    cases_payload = payload.get("cases")
+    if not isinstance(cases_payload, list) or not cases_payload:
+        raise ValueError("Evaluation dataset must contain a non-empty 'cases' list.")
+
+    cases: list[EvalCase] = []
+    for index, raw_case in enumerate(cases_payload, start=1):
+        if not isinstance(raw_case, dict):
+            raise ValueError(f"Case {index} must be an object.")
+        question = raw_case.get("question")
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError(f"Case {index} must contain a non-empty question.")
+
+        case_id = raw_case.get("id") or raw_case.get("case_id") or f"case-{index}"
+        if not isinstance(case_id, str):
+            raise ValueError(f"Case {index} id must be a string.")
+
+        expected_document_filename = raw_case.get("expected_document_filename")
+        if expected_document_filename is not None and not isinstance(expected_document_filename, str):
+            raise ValueError(f"Case {index} expected_document_filename must be a string.")
+
+        notes = raw_case.get("notes")
+        if notes is not None and not isinstance(notes, str):
+            raise ValueError(f"Case {index} notes must be a string.")
+
+        cases.append(
+            EvalCase(
+                case_id=case_id,
+                question=question.strip(),
+                expected_terms=_coerce_string_list(raw_case.get("expected_terms"), "expected_terms"),
+                expected_answer_terms=_coerce_string_list(
+                    raw_case.get("expected_answer_terms"),
+                    "expected_answer_terms",
+                ),
+                expected_document_filename=expected_document_filename,
+                expected_chunk_text_contains=_coerce_string_list(
+                    raw_case.get("expected_chunk_text_contains"),
+                    "expected_chunk_text_contains",
+                ),
+                notes=notes,
+            )
+        )
+
+    name = payload.get("name") or path.stem
+    if not isinstance(name, str):
+        raise ValueError("Dataset name must be a string.")
+
+    description = payload.get("description")
+    if description is not None and not isinstance(description, str):
+        raise ValueError("Dataset description must be a string.")
+
+    default_k = payload.get("default_k", 5)
+    if not isinstance(default_k, int) or default_k < 1:
+        raise ValueError("default_k must be a positive integer.")
+
+    return EvalDataset(name=name, description=description, default_k=default_k, cases=cases)
+
+
+def evidence_matches_case(evidence: RetrievedEvidence, eval_case: EvalCase) -> bool:
+    if eval_case.expected_document_filename:
+        expected_filename = eval_case.expected_document_filename.casefold()
+        if evidence.document_filename.casefold() != expected_filename:
+            return False
+
+    required_terms = eval_case.required_chunk_terms
+    if required_terms:
+        chunk_text = evidence.chunk_text.casefold()
+        return all(term.casefold() in chunk_text for term in required_terms)
+
+    return eval_case.expected_document_filename is not None
+
+
+def evaluate_case(eval_case: EvalCase, retrieved: list[RetrievedEvidence]) -> CaseEvaluationResult:
+    hit_rank: int | None = None
+    matched: RetrievedEvidence | None = None
+    for evidence in retrieved:
+        if evidence_matches_case(evidence, eval_case):
+            hit_rank = evidence.rank
+            matched = evidence
+            break
+
+    reciprocal_rank = 1 / hit_rank if hit_rank is not None else 0.0
+    return CaseEvaluationResult(
+        case_id=eval_case.case_id,
+        question=eval_case.question,
+        hit=hit_rank is not None,
+        hit_rank=hit_rank,
+        reciprocal_rank=reciprocal_rank,
+        result_count=len(retrieved),
+        no_results=len(retrieved) == 0,
+        matched_chunk_id=matched.chunk_id if matched else None,
+        matched_document_filename=matched.document_filename if matched else None,
+        notes=eval_case.notes,
+        retrieved=retrieved,
+    )
+
+
+def compute_summary(dataset_name: str, results: list[CaseEvaluationResult], k: int) -> EvaluationSummary:
+    total_cases = len(results)
+    hits = sum(1 for result in results if result.hit)
+    reciprocal_rank_sum = sum(result.reciprocal_rank for result in results)
+    return EvaluationSummary(
+        dataset_name=dataset_name,
+        total_cases=total_cases,
+        k=k,
+        hits=hits,
+        hit_at_k=hits / total_cases if total_cases else 0.0,
+        mean_reciprocal_rank=reciprocal_rank_sum / total_cases if total_cases else 0.0,
+        no_result_queries=sum(1 for result in results if result.no_results),
+    )
+
+
+def run_retrieval_eval(db: Session, dataset: EvalDataset, limit: int | None = None) -> EvaluationReport:
+    k = limit or dataset.default_k
+    results: list[CaseEvaluationResult] = []
+
+    for eval_case in dataset.cases:
+        search_results = search_chunks(db, query=eval_case.question, limit=k)
+        retrieved = [
+            RetrievedEvidence(
+                rank=result.rank,
+                score=result.score,
+                document_id=result.document.id,
+                document_title=result.document.title,
+                document_filename=result.document.original_filename,
+                chunk_id=result.chunk.chunk_id,
+                chunk_index=result.chunk.chunk_index,
+                chunk_text=result.chunk.text,
+            )
+            for result in search_results
+        ]
+        results.append(evaluate_case(eval_case, retrieved))
+
+    return EvaluationReport(
+        summary=compute_summary(dataset.name, results, k),
+        results=results,
+    )
+
+
+def report_to_dict(report: EvaluationReport) -> dict[str, Any]:
+    return asdict(report)
+
+
+def format_report(report: EvaluationReport) -> str:
+    summary = report.summary
+    lines = [
+        f"Retrieval evaluation: {summary.dataset_name}",
+        f"Cases: {summary.total_cases}",
+        f"hit@{summary.k}: {summary.hit_at_k:.3f} ({summary.hits}/{summary.total_cases})",
+        f"MRR: {summary.mean_reciprocal_rank:.3f}",
+        f"No-result queries: {summary.no_result_queries}",
+        "",
+        "Case results:",
+    ]
+    for result in report.results:
+        status = "HIT" if result.hit else "MISS"
+        rank = f"rank {result.hit_rank}" if result.hit_rank is not None else "no match"
+        lines.append(f"- [{status}] {result.case_id}: {rank}, {result.result_count} result(s)")
+        if result.matched_document_filename and result.matched_chunk_id:
+            lines.append(
+                f"  matched {result.matched_document_filename} chunk {result.matched_chunk_id[:8]}"
+            )
+        if result.no_results:
+            lines.append("  retrieval returned no chunks")
+        if result.notes:
+            lines.append(f"  notes: {result.notes}")
+    return "\n".join(lines)
+
+
+class EvalRunner:
+    """Runs local deterministic retrieval evaluations."""
+
+    def run(self, eval_set_path: str, db: Session, limit: int | None = None) -> dict[str, Any]:
+        dataset = load_dataset(eval_set_path)
+        report = run_retrieval_eval(db, dataset, limit=limit)
+        return report_to_dict(report)

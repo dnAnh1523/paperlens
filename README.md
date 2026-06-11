@@ -57,6 +57,23 @@ npm run dev
 
 Open `http://127.0.0.1:3000`.
 
+## Run retrieval evaluation
+
+After uploading and preparing local documents, run a deterministic retrieval eval from the repository root:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json
+```
+
+The sample dataset is designed for `evals/fixtures/sample_retrieval_source.txt`. Upload that file in
+the web UI, click `Prepare document`, then run the command above. JSON reports can be written with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --write-json
+```
+
+Generated reports under `evals/runs/` are ignored by Git.
+
 ## Storage strategy
 
 Local development uses:

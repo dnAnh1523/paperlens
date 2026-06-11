@@ -228,3 +228,24 @@ Implemented in feature branch `feature/m12-stable-evidence-snapshots`:
 - Historical evidence remains inspectable after re-running chunking or deleting the source document metadata.
 
 Current limitation: snapshot fallback shows captured extracted text only. It does not render original PDF pages, highlight page coordinates, perform OCR, or reconstruct neighboring chunks after the source chunk is gone.
+
+## Milestone 13 Progress: Embedding Abstraction
+
+Implemented in feature branch `feature/m13-embedding-abstraction`:
+
+- Added an embedding provider protocol with provider name, model name, dimension, and `embed_texts()`.
+- Added a deterministic local `local-hash` fake embedding provider for offline development and tests.
+- Added a `chunk_embeddings` SQLite table that stores one vector per chunk/provider/model.
+- Added document-scoped endpoints to index chunk embeddings and read embedding index status.
+- Re-indexing a document replaces existing rows for the same provider/model without duplicates.
+- Existing lexical search and chat evidence behavior remain unchanged.
+
+Current limitation: embeddings are pipeline scaffolding only. They are hash-based test vectors, not real semantic embeddings, and they are not used for retrieval ranking yet. There is still no vector database, external embedding API, LLM call, Docker service, or paid API integration.
+
+## Budget Constraint
+
+PaperLens is developed under a zero-budget constraint.
+
+The project must not require paid APIs, paid cloud services, hosted databases, paid model calls, or commercial infrastructure for local development. Any future integration with OpenAI, hosted vector databases, cloud deployment, or paid services must be optional and isolated behind interfaces.
+
+Default development mode must work locally on Windows 11 using free tools only.

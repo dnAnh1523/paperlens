@@ -21,6 +21,38 @@ export type PaperLensDocument = {
   updated_at: string;
 };
 
+export type IngestionJobStatus = "pending" | "running" | "completed" | "failed";
+
+export type IngestionJob = {
+  id: string;
+  document_id: string;
+  status: IngestionJobStatus;
+  stage: string;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+export type IngestionTextPreview = {
+  document_id: string;
+  text: string;
+  total_characters: number;
+  preview_characters: number;
+};
+
+export type DocumentChunk = {
+  chunk_id: string;
+  document_id: string;
+  chunk_index: number;
+  text: string;
+  char_start: number;
+  char_end: number;
+  estimated_token_count: number;
+  created_at: string;
+};
+
 export type Conversation = {
   conversation_id: string;
   title: string;
@@ -107,6 +139,46 @@ export async function deleteDocument(documentId: string): Promise<void> {
   if (!response.ok) {
     throw new Error(await parseError(response));
   }
+}
+
+export async function fetchDocumentIngestion(documentId: string): Promise<IngestionJob> {
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}/ingestion`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<IngestionJob>(response);
+}
+
+export async function triggerDocumentIngestion(documentId: string): Promise<IngestionJob> {
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}/ingestion`, {
+    method: "POST",
+  });
+  return parseJsonResponse<IngestionJob>(response);
+}
+
+export async function fetchDocumentTextPreview(
+  documentId: string,
+  maxChars = 800,
+): Promise<IngestionTextPreview> {
+  const params = new URLSearchParams({ max_chars: String(maxChars) });
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}/ingestion/text-preview?${params}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<IngestionTextPreview>(response);
+}
+
+export async function createDocumentChunks(documentId: string): Promise<DocumentChunk[]> {
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}/chunks`, {
+    method: "POST",
+  });
+  return parseJsonResponse<DocumentChunk[]>(response);
+}
+
+export async function fetchDocumentChunks(documentId: string, limit = 100): Promise<DocumentChunk[]> {
+  const params = new URLSearchParams({ offset: "0", limit: String(limit) });
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}/chunks?${params}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<DocumentChunk[]>(response);
 }
 
 export async function createConversation(title?: string): Promise<Conversation> {

@@ -24,6 +24,19 @@ The home page now includes an evidence chat workspace alongside the document lib
 
 The frontend does not call an LLM. Assistant content and evidence snippets are the deterministic backend evidence preview from the local FastAPI API.
 
+## Milestone 7 Local Workflow UI
+
+The document library now supports the full local happy path from the browser:
+
+- loads ingestion status with `GET /documents/{document_id}/ingestion`;
+- retries ingestion with `POST /documents/{document_id}/ingestion`;
+- shows extracted text preview from `GET /documents/{document_id}/ingestion/text-preview`;
+- runs chunking with `POST /documents/{document_id}/chunks`;
+- shows chunk readiness with `GET /documents/{document_id}/chunks`;
+- prepares a document by running ingestion and chunking in sequence from the UI.
+
+This keeps the backend endpoints explicit while removing the need for manual curl commands during normal local testing.
+
 ## Configuration
 
 The frontend reads `NEXT_PUBLIC_API_BASE_URL` when provided. If absent, it defaults to `http://127.0.0.1:8000`.
@@ -37,6 +50,5 @@ $env:NPM_CONFIG_CACHE="F:\paperlens-npm-cache"; npm install
 ## Current limitations
 
 - No authentication.
-- No real ingestion progress UI yet.
-- No frontend controls for manual chunking yet.
+- Ingestion and chunking still run synchronously through API requests.
 - No source preview or PDF page viewer yet.

@@ -24,6 +24,10 @@ As a user, I want PaperLens to compare methods/results across tables and figures
 
 As a user, I want to view and delete uploaded documents so that I can keep the local PaperLens workspace clean during experiments.
 
+## Prepare local documents
+
+As a user, I want to ingest and chunk a document from the web app so that I can ask evidence-preview questions without manual API commands.
+
 ## Verify system readiness
 
 As a developer, I want the web app to display API connectivity so that I can quickly diagnose whether frontend/backend integration is working during local development.

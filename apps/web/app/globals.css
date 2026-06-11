@@ -239,6 +239,10 @@ button:disabled {
   padding: 18px;
 }
 
+.workflowCard {
+  display: block;
+}
+
 .documentCard h4 {
   margin: 12px 0 6px;
   font-size: 1.2rem;
@@ -273,6 +277,56 @@ dt {
 dd {
   margin: 4px 0 0;
   color: #e5e7eb;
+}
+
+.workflowPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.workflowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workflowActions button {
+  min-height: 42px;
+}
+
+.previewPanel,
+.noEvidenceHint {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.previewPanel {
+  padding: 14px;
+}
+
+.previewHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  color: #e5e7eb;
+}
+
+.previewHeader span {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.previewPanel p {
+  max-height: 180px;
+  margin: 10px 0 0;
+  overflow: auto;
+  color: #cbd5e1;
+  white-space: pre-wrap;
 }
 
 .chatWorkspace {
@@ -465,6 +519,12 @@ dd {
   margin-top: 12px;
 }
 
+.noEvidenceHint {
+  margin-top: 12px;
+  padding: 12px;
+  color: #fde68a;
+}
+
 .messageComposer {
   padding: 14px;
 }
@@ -508,6 +568,8 @@ dd {
   .libraryHeader,
   .uploadControls,
   .documentCard,
+  .workflowActions,
+  .previewHeader,
   .conversationPanelHeader,
   .chatPanelHeader,
   .messageComposerControls {

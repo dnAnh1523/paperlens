@@ -92,3 +92,10 @@ Generated reports are written under `evals/runs/`, which is gitignored.
 - Metrics only check lexical retrieval against expected filenames and chunk text terms.
 - There is no LLM judge, answer faithfulness score, semantic similarity, reranking, or embedding recall yet.
 - The harness evaluates current local SQLite state, so documents must be uploaded, ingested, and chunked first.
+
+## PDF notes
+
+PDF eval cases should use text-layer PDFs for now. Milestone 10 preserves page markers in
+`extracted_text.txt` and writes page-level text artifacts, so retrieval cases can target terms that
+appear on specific pages. Scanned PDFs without a text layer are expected to fail ingestion until OCR is
+implemented.

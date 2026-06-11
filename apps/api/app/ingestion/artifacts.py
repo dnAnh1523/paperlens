@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings
+from app.ingestion.extractors import PageExtraction
 
 EXTRACTED_TEXT_FILENAME = "extracted_text.txt"
 METADATA_FILENAME = "metadata.json"
@@ -41,6 +42,18 @@ def write_metadata(document_id: str, metadata: dict[str, Any]) -> Path:
     output_path = artifact_dir / METADATA_FILENAME
     output_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
     return output_path
+
+
+def write_page_texts(document_id: str, page_texts: list[PageExtraction]) -> list[Path]:
+    pages_dir = document_artifact_dir(document_id) / "pages"
+    pages_dir.mkdir(parents=True, exist_ok=True)
+
+    output_paths: list[Path] = []
+    for page in page_texts:
+        output_path = pages_dir / f"page_{page.page_number:03d}.txt"
+        output_path.write_text(page.text, encoding="utf-8")
+        output_paths.append(output_path)
+    return output_paths
 
 
 def write_chunks_artifact(document_id: str, chunks: list[dict[str, Any]]) -> Path:

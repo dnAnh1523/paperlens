@@ -9,6 +9,7 @@ from app.ingestion.artifacts import (
     read_extracted_text,
     write_extracted_text,
     write_metadata,
+    write_page_texts,
 )
 from app.ingestion.extractors import ExtractionError, UnsupportedExtractionError, extract_text
 from app.models.document import Document, DocumentStatus
@@ -61,6 +62,9 @@ def run_ingestion(db: Session, document: Document) -> IngestionJob:
     try:
         result = extract_text(document)
         text_path = write_extracted_text(document.id, result.text)
+        page_text_paths = (
+            write_page_texts(document.id, result.page_texts) if result.page_texts else []
+        )
         finished_at = datetime.now(timezone.utc)
         write_metadata(
             document.id,
@@ -70,8 +74,10 @@ def run_ingestion(db: Session, document: Document) -> IngestionJob:
                 "content_type": document.content_type,
                 "extractor": result.extractor_name,
                 "extracted_text_path": str(text_path),
+                "page_text_paths": [str(path) for path in page_text_paths],
                 "character_count": len(result.text),
                 "extracted_at": finished_at.isoformat(),
+                **result.metadata,
             },
         )
         job.status = IngestionJobStatus.COMPLETED
@@ -86,6 +92,24 @@ def run_ingestion(db: Session, document: Document) -> IngestionJob:
         job.finished_at = datetime.now(timezone.utc)
         document.status = DocumentStatus.FAILED
     except ExtractionError as exc:
+        page_text_paths = write_page_texts(document.id, exc.page_texts) if exc.page_texts else []
+        if exc.metadata:
+            finished_at = datetime.now(timezone.utc)
+            write_metadata(
+                document.id,
+                {
+                    "document_id": document.id,
+                    "source_path": document.storage_path,
+                    "content_type": document.content_type,
+                    "extractor": exc.metadata.get("extractor", "unknown"),
+                    "page_text_paths": [str(path) for path in page_text_paths],
+                    "character_count": 0,
+                    "extracted_at": finished_at.isoformat(),
+                    "status": "failed",
+                    "error_message": str(exc),
+                    **exc.metadata,
+                },
+            )
         job.status = IngestionJobStatus.FAILED
         job.stage = "failed"
         job.error_message = str(exc)

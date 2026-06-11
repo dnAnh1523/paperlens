@@ -41,7 +41,11 @@ Supported content types:
 
 Current upload limit: 50 MB.
 
-After the file is stored, the API runs the synchronous ingestion foundation. Text and Markdown uploads normally return with document status `ready`. Upload-accepted formats without an extractor return with document status `failed` and an ingestion job error.
+After the file is stored, the API runs the synchronous ingestion foundation. Text, Markdown, and
+text-layer PDF uploads normally return with document status `ready`. Scanned PDFs without an
+extractable text layer return with document status `failed` and an ingestion job error that identifies
+OCR as future work. Upload-accepted formats without an extractor return with document status `failed`
+and an ingestion job error.
 
 ### List documents
 
@@ -83,6 +87,9 @@ GET /documents/{document_id}/ingestion/text-preview?max_chars=1000
 
 Returns a preview of `data/storage/artifacts/documents/{document_id}/extracted_text.txt`.
 `max_chars` must be between 1 and 10000.
+
+For PDFs, the preview is read from the combined extracted text artifact and includes coarse page markers
+such as `--- Page 1 ---` when extraction succeeds.
 
 ### Trigger or re-run chunking
 

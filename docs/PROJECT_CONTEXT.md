@@ -190,3 +190,16 @@ Implemented in feature branch `feature/m9-evaluation-harness`:
 - Unit tests for dataset parsing, evidence matching, and metric summaries.
 
 Current limitation: evaluation is lexical and term-based only. It does not use LLM judging, embeddings, semantic similarity, or vector retrieval.
+
+## Milestone 10 Progress: PDF Extraction Hardening
+
+Implemented in feature branch `feature/m10-pdf-extraction-hardening`:
+
+- PyMuPDF PDF extraction now reads text page by page.
+- Combined `extracted_text.txt` keeps page markers for chunking and preview compatibility.
+- Page-level text artifacts are written under `data/storage/artifacts/documents/{document_id}/pages/`.
+- PDF metadata records page counts, extracted page counts, pages with and without text, extraction method, warnings, and page text paths.
+- Scanned/no-text PDFs fail ingestion with a clear no-text-layer and OCR-future-work warning.
+- Text and Markdown ingestion remain supported with the same API behavior.
+
+Current limitation: PDF support is still text-layer only. OCR, page rendering, table extraction, figure extraction, equation parsing, and layout-aware chunking are future work.

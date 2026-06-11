@@ -141,3 +141,16 @@ Implemented in feature branch `feature/m5-chat-evidence-api`:
 
 Current limitation: assistant responses are retrieval previews only. They do not synthesize full natural-language answers or perform semantic retrieval.
 
+## Milestone 6 Progress: Chat UI
+
+Implemented in feature branch `feature/m6-chat-ui`:
+
+- Next.js evidence chat workspace on the home page.
+- Browser-side API helpers for conversation creation, listing, reading, deletion, message posting, and message history.
+- Conversation selection panel with create and delete actions.
+- Message list showing user prompts and deterministic assistant evidence previews.
+- Evidence cards for assistant messages with rank, score, excerpt, document id, and chunk id.
+- Loading and error states for conversation and message operations.
+
+Current limitation: the UI relies on already ingested and chunked backend data. It does not yet provide manual chunking controls, source previews, or a PDF/page viewer.
+

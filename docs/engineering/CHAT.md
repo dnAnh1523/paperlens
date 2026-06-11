@@ -12,6 +12,17 @@ Milestone 5 adds the backend chat foundation for retrieval-grounded evidence pre
 6. Retrieved chunks are stored as `message_evidence` rows linked to the assistant message.
 7. Message history can be read with `GET /conversations/{conversation_id}/messages`.
 
+## Frontend flow
+
+Milestone 6 adds a Next.js chat workspace to the home page:
+
+1. The UI loads existing conversations.
+2. The user creates or selects a conversation.
+3. The user submits a question.
+4. The UI displays the stored user message and deterministic assistant message.
+5. Assistant evidence rows are shown as citation cards with rank, score, excerpt, document id, and chunk id.
+6. If no evidence is returned, the UI shows the backend no-evidence message.
+
 ## Response behavior
 
 Assistant messages always identify themselves as evidence previews. When chunks match, the response lists retrieved evidence snippets with document and chunk references. When no chunks match, the response clearly says no relevant evidence was found and suggests chunking ingested documents or using terms from uploaded sources.
@@ -34,5 +45,5 @@ The excerpt is a snapshot of retrieved chunk text. It is stored with the message
 
 - Retrieval is lexical and LIKE-based.
 - No semantic retrieval, embeddings, reranking, or answer synthesis yet.
-- No frontend chat UI yet.
+- No frontend source preview or PDF page viewer yet.
 - Conversation schema is created with the existing local `create_all()` startup behavior; Alembic migrations are still future work.

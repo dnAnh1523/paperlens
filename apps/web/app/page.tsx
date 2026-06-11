@@ -1,3 +1,4 @@
+import { ChatWorkspace } from "./components/ChatWorkspace";
 import { DocumentLibrary } from "./components/DocumentLibrary";
 
 export default function HomePage() {
@@ -25,6 +26,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      <ChatWorkspace />
       <DocumentLibrary />
     </main>
   );

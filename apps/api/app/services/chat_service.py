@@ -56,6 +56,24 @@ def get_conversation(db: Session, conversation_id: str) -> Conversation | None:
     return db.get(Conversation, conversation_id)
 
 
+def get_message_evidence(
+    db: Session,
+    conversation_id: str,
+    message_id: str,
+    evidence_id: str,
+) -> MessageEvidence | None:
+    statement = (
+        select(MessageEvidence)
+        .join(Message, Message.message_id == MessageEvidence.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.message_id == message_id,
+            MessageEvidence.evidence_id == evidence_id,
+        )
+    )
+    return db.scalars(statement).first()
+
+
 def delete_conversation(db: Session, conversation: Conversation) -> None:
     db.delete(conversation)
     db.commit()
@@ -115,9 +133,16 @@ def _create_evidence_rows(
             rank=result.rank,
             score=result.score,
             excerpt=_excerpt(result.chunk.text),
+            full_chunk_text_snapshot=result.chunk.text,
+            document_title_snapshot=result.document.title,
+            document_filename_snapshot=result.document.original_filename,
+            chunk_index_snapshot=result.chunk.chunk_index,
+            char_start_snapshot=result.chunk.char_start,
+            char_end_snapshot=result.chunk.char_end,
             page_number=result.chunk.page_number,
             page_start=result.chunk.page_start,
             page_end=result.chunk.page_end,
+            estimated_token_count_snapshot=result.chunk.estimated_token_count,
         )
         for result in results
     ]

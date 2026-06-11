@@ -93,14 +93,21 @@ Stores evidence snapshots linked to assistant messages.
 | `rank` | integer | Retrieval rank used in the assistant response |
 | `score` | float | Lexical retrieval score |
 | `excerpt` | text | Snapshot text stored with the message |
+| `full_chunk_text_snapshot` | text nullable | Full retrieved chunk text captured when the assistant answer was created |
+| `document_title_snapshot` | string nullable | Source document title captured at answer time |
+| `document_filename_snapshot` | string nullable | Source document filename captured at answer time |
+| `chunk_index_snapshot` | integer nullable | Source chunk index captured at answer time |
+| `char_start_snapshot` | integer nullable | Source chunk start offset captured at answer time |
+| `char_end_snapshot` | integer nullable | Source chunk end offset captured at answer time |
 | `page_number` | integer nullable | Source page number copied from the retrieved chunk |
 | `page_start` | integer nullable | Start offset within the source page text |
 | `page_end` | integer nullable | End offset within the source page text |
+| `estimated_token_count_snapshot` | integer nullable | Estimated token count copied from the retrieved chunk |
 
 ## Current migration strategy
 
-The API calls `Base.metadata.create_all()` at startup. For Milestone 11, startup also performs a small
-SQLite-only additive column check for page-aware chunk and evidence metadata. This keeps local Windows
-development moving without introducing Alembic yet.
+The API calls `Base.metadata.create_all()` at startup. For Milestones 11 and 12, startup also performs
+a small SQLite-only additive column check for page-aware chunk metadata and stable evidence snapshot
+metadata. This keeps local Windows development moving without introducing Alembic yet.
 
 Later milestones should introduce Alembic migrations before schema changes become complex.

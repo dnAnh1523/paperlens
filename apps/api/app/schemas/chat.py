@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,9 +33,16 @@ class MessageEvidenceRead(BaseModel):
     rank: int
     score: float
     excerpt: str
+    full_chunk_text_snapshot: str | None = None
+    document_title_snapshot: str | None = None
+    document_filename_snapshot: str | None = None
+    chunk_index_snapshot: int | None = None
+    char_start_snapshot: int | None = None
+    char_end_snapshot: int | None = None
     page_number: int | None = None
     page_start: int | None = None
     page_end: int | None = None
+    estimated_token_count_snapshot: int | None = None
 
 
 class MessageRead(BaseModel):
@@ -51,3 +59,33 @@ class MessageRead(BaseModel):
 class ChatTurnRead(BaseModel):
     user_message: MessageRead
     assistant_message: MessageRead
+
+
+class EvidenceSourceDocumentRead(BaseModel):
+    id: str
+    title: str
+    original_filename: str
+
+
+class EvidenceSourceChunkRead(BaseModel):
+    chunk_id: str
+    document_id: str
+    chunk_index: int | None
+    text: str
+    char_start: int | None
+    char_end: int | None
+    page_number: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
+    estimated_token_count: int | None = None
+
+
+class MessageEvidenceSourceRead(BaseModel):
+    source_status: Literal["live", "snapshot"]
+    is_stale: bool
+    note: str | None = None
+    evidence: MessageEvidenceRead
+    document: EvidenceSourceDocumentRead
+    selected_chunk: EvidenceSourceChunkRead
+    previous_chunks: list[EvidenceSourceChunkRead] = Field(default_factory=list)
+    next_chunks: list[EvidenceSourceChunkRead] = Field(default_factory=list)

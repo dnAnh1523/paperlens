@@ -28,6 +28,10 @@ Milestone 8 makes those evidence cards expandable. Opening a card loads source c
 estimated token count, document filename, and neighboring chunks.
 Milestone 11 adds page numbers and page-local offsets to those cards when the retrieved chunk came from
 a PDF page artifact.
+Milestone 12 switches the chat evidence expander to
+`GET /conversations/{conversation_id}/messages/{message_id}/evidence/{evidence_id}/source`. The
+backend returns live chunk context when available and falls back to the stored evidence snapshot when
+the original chunk was regenerated or deleted.
 
 ## Response behavior
 
@@ -44,15 +48,33 @@ Each evidence row stores:
 - `rank`
 - `score`
 - `excerpt`
+- `full_chunk_text_snapshot`
+- `document_title_snapshot`
+- `document_filename_snapshot`
+- `chunk_index_snapshot`
+- `char_start_snapshot`
+- `char_end_snapshot`
 - `page_number`
 - `page_start`
 - `page_end`
+- `estimated_token_count_snapshot`
 
-The excerpt is a snapshot of retrieved chunk text. It is stored with the message so the conversation remains interpretable even if chunks are regenerated later.
+The excerpt and full chunk text are snapshots of retrieved chunk text. They are stored with the message
+so the conversation remains interpretable and inspectable even if chunks are regenerated later.
 
-The expanded source preview reads the current chunk row by `document_id` and `chunk_id`. If chunks are
-regenerated after a conversation was created, an old evidence row can still show its stored excerpt, but
-the source context lookup may return `Chunk not found`.
+## Stable source preview
+
+The expanded source preview first tries to resolve the current chunk row by `document_id` and `chunk_id`.
+If the live chunk still exists, the response is marked `source_status: "live"` and includes neighboring
+chunks. If the live chunk is gone because the document was re-chunked or deleted, the response is marked
+`source_status: "snapshot"` and includes the stored answer-time snapshot with this note:
+
+```text
+This chunk was regenerated or deleted. Showing the evidence snapshot captured when the answer was created.
+```
+
+Snapshot fallback does not reconstruct previous or next chunks; it only shows the captured selected
+chunk text and metadata.
 
 ## Local limitations
 

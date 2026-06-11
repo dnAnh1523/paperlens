@@ -119,6 +119,13 @@ def test_post_message_creates_user_assistant_and_evidence() -> None:
     assert evidence["rank"] == 1
     assert evidence["score"] > 0
     assert term in evidence["excerpt"]
+    assert term in evidence["full_chunk_text_snapshot"]
+    assert evidence["document_title_snapshot"] == document["title"]
+    assert evidence["document_filename_snapshot"] == document["original_filename"]
+    assert evidence["chunk_index_snapshot"] == 0
+    assert evidence["char_start_snapshot"] is not None
+    assert evidence["char_end_snapshot"] is not None
+    assert evidence["estimated_token_count_snapshot"] is not None
     assert evidence["page_number"] is None
 
 
@@ -143,6 +150,99 @@ def test_post_message_evidence_includes_pdf_page_metadata() -> None:
     assert evidence["page_number"] == 2
     assert evidence["page_start"] is not None
     assert evidence["page_end"] is not None
+    assert evidence["chunk_index_snapshot"] == 1
+    assert term in evidence["full_chunk_text_snapshot"]
+
+
+def test_evidence_source_endpoint_returns_live_context() -> None:
+    client = TestClient(app)
+    term = _term("chatsourcelive")
+    _create_chunked_document(client, term)
+    conversation = client.post("/conversations").json()
+
+    post_response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": term},
+    )
+    assert post_response.status_code == 200
+    assistant = post_response.json()["assistant_message"]
+    evidence = assistant["evidence"][0]
+
+    source_response = client.get(
+        f"/conversations/{conversation['conversation_id']}/messages/"
+        f"{assistant['message_id']}/evidence/{evidence['evidence_id']}/source"
+    )
+
+    assert source_response.status_code == 200
+    source = source_response.json()
+    assert source["source_status"] == "live"
+    assert source["is_stale"] is False
+    assert source["note"] is None
+    assert source["selected_chunk"]["chunk_id"] == evidence["chunk_id"]
+    assert term in source["selected_chunk"]["text"]
+
+
+def test_evidence_source_falls_back_to_snapshot_after_rechunking() -> None:
+    client = TestClient(app)
+    term = _term("chatsourcerechunk")
+    document = _create_chunked_document(client, term)
+    conversation = client.post("/conversations").json()
+
+    post_response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": term},
+    )
+    assert post_response.status_code == 200
+    assistant = post_response.json()["assistant_message"]
+    evidence = assistant["evidence"][0]
+
+    rechunk_response = client.post(f"/documents/{document['id']}/chunks")
+    assert rechunk_response.status_code == 200
+    assert evidence["chunk_id"] not in {chunk["chunk_id"] for chunk in rechunk_response.json()}
+
+    source_response = client.get(
+        f"/conversations/{conversation['conversation_id']}/messages/"
+        f"{assistant['message_id']}/evidence/{evidence['evidence_id']}/source"
+    )
+
+    assert source_response.status_code == 200
+    source = source_response.json()
+    assert source["source_status"] == "snapshot"
+    assert source["is_stale"] is True
+    assert "chunk was regenerated or deleted" in source["note"]
+    assert source["selected_chunk"]["chunk_id"] == evidence["chunk_id"]
+    assert source["selected_chunk"]["text"] == evidence["full_chunk_text_snapshot"]
+    assert source["document"]["original_filename"] == evidence["document_filename_snapshot"]
+
+
+def test_evidence_source_falls_back_to_snapshot_after_document_delete() -> None:
+    client = TestClient(app)
+    term = _term("chatsourcedelete")
+    document = _create_chunked_document(client, term)
+    conversation = client.post("/conversations").json()
+
+    post_response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": term},
+    )
+    assert post_response.status_code == 200
+    assistant = post_response.json()["assistant_message"]
+    evidence = assistant["evidence"][0]
+
+    delete_response = client.delete(f"/documents/{document['id']}")
+    assert delete_response.status_code == 204
+
+    source_response = client.get(
+        f"/conversations/{conversation['conversation_id']}/messages/"
+        f"{assistant['message_id']}/evidence/{evidence['evidence_id']}/source"
+    )
+
+    assert source_response.status_code == 200
+    source = source_response.json()
+    assert source["source_status"] == "snapshot"
+    assert source["is_stale"] is True
+    assert source["document"]["title"] == evidence["document_title_snapshot"]
+    assert term in source["selected_chunk"]["text"]
 
 
 def test_no_evidence_case_creates_clear_assistant_message() -> None:

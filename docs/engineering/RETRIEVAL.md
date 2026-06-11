@@ -48,6 +48,10 @@ Milestone 4 uses a SQLite `LIKE`-based lexical fallback instead of FTS5. This ke
 
 Milestone 5 reuses the same lexical search service for chat. When a user posts a message, the backend searches chunks with the message content, stores the retrieved chunk metadata as `message_evidence`, and returns a deterministic assistant message. Evidence rows keep `document_id`, `chunk_id`, rank, score, and an excerpt snapshot so chat history remains understandable even if chunks are later regenerated.
 
+## Browser usage
+
+Milestone 7 makes chunking available from the document library UI. Users can upload a text or Markdown file, prepare it from the browser, then ask chat questions that match the resulting chunks. No manual curl command is required for the normal local evidence-preview loop.
+
 ## Limitations
 
 - No embeddings or vector search yet.

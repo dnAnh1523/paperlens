@@ -1,17 +1,34 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   API_BASE_URL,
+  IngestionJob,
+  IngestionTextPreview,
   PaperLensDocument,
+  createDocumentChunks,
   deleteDocument,
+  fetchDocumentChunks,
+  fetchDocumentIngestion,
+  fetchDocumentTextPreview,
   fetchDocuments,
   fetchHealth,
+  triggerDocumentIngestion,
   uploadDocument,
 } from "../../lib/api";
 
 type ApiState = "checking" | "online" | "offline";
+type WorkflowAction = "ingesting" | "chunking" | "preparing";
+
+type DocumentWorkflowState = {
+  ingestion?: IngestionJob;
+  preview?: IngestionTextPreview;
+  chunkCount?: number;
+  isLoading?: boolean;
+  action?: WorkflowAction;
+  workflowError?: string;
+};
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) {
@@ -61,6 +78,7 @@ export function DocumentLibrary() {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [workflowStates, setWorkflowStates] = useState<Record<string, DocumentWorkflowState>>({});
 
   const documentCountLabel = useMemo(() => {
     if (documents.length === 1) {
@@ -69,9 +87,44 @@ export function DocumentLibrary() {
     return `${documents.length} documents`;
   }, [documents.length]);
 
+  const updateWorkflowState = useCallback((documentId: string, nextState: Partial<DocumentWorkflowState>) => {
+    setWorkflowStates((currentStates) => ({
+      ...currentStates,
+      [documentId]: {
+        ...currentStates[documentId],
+        ...nextState,
+      },
+    }));
+  }, []);
+
+  const loadWorkflowState = useCallback(async (documentId: string) => {
+    updateWorkflowState(documentId, { isLoading: true, workflowError: undefined });
+    const [ingestionResult, chunksResult, previewResult] = await Promise.allSettled([
+      fetchDocumentIngestion(documentId),
+      fetchDocumentChunks(documentId),
+      fetchDocumentTextPreview(documentId),
+    ]);
+
+    updateWorkflowState(documentId, {
+      ingestion: ingestionResult.status === "fulfilled" ? ingestionResult.value : undefined,
+      chunkCount: chunksResult.status === "fulfilled" ? chunksResult.value.length : 0,
+      preview: previewResult.status === "fulfilled" ? previewResult.value : undefined,
+      isLoading: false,
+      workflowError:
+        ingestionResult.status === "rejected" && ingestionResult.reason instanceof Error
+          ? ingestionResult.reason.message
+          : undefined,
+    });
+  }, [updateWorkflowState]);
+
+  const loadWorkflowStates = useCallback(async (nextDocuments: PaperLensDocument[]) => {
+    await Promise.all(nextDocuments.map((document) => loadWorkflowState(document.id)));
+  }, [loadWorkflowState]);
+
   async function refreshDocuments() {
     const nextDocuments = await fetchDocuments();
     setDocuments(nextDocuments);
+    await loadWorkflowStates(nextDocuments);
   }
 
   useEffect(() => {
@@ -91,6 +144,7 @@ export function DocumentLibrary() {
           return;
         }
         setDocuments(nextDocuments);
+        await loadWorkflowStates(nextDocuments);
       } catch (loadError) {
         if (!isMounted) {
           return;
@@ -109,7 +163,7 @@ export function DocumentLibrary() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadWorkflowStates]);
 
   async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -155,15 +209,75 @@ export function DocumentLibrary() {
     }
   }
 
+  async function handleIngest(document: PaperLensDocument) {
+    updateWorkflowState(document.id, { action: "ingesting", workflowError: undefined });
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const job = await triggerDocumentIngestion(document.id);
+      await loadWorkflowState(document.id);
+      setSuccessMessage(
+        job.status === "completed"
+          ? `Ingested ${document.original_filename}.`
+          : `Ingestion finished with status ${job.status}.`,
+      );
+    } catch (ingestError) {
+      const message = ingestError instanceof Error ? ingestError.message : "Ingestion failed.";
+      updateWorkflowState(document.id, { workflowError: message });
+      setError(message);
+    } finally {
+      updateWorkflowState(document.id, { action: undefined });
+    }
+  }
+
+  async function handleChunk(document: PaperLensDocument) {
+    updateWorkflowState(document.id, { action: "chunking", workflowError: undefined });
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const chunks = await createDocumentChunks(document.id);
+      await loadWorkflowState(document.id);
+      setSuccessMessage(`Created ${chunks.length} chunks for ${document.original_filename}.`);
+    } catch (chunkError) {
+      const message = chunkError instanceof Error ? chunkError.message : "Chunking failed.";
+      updateWorkflowState(document.id, { workflowError: message });
+      setError(message);
+    } finally {
+      updateWorkflowState(document.id, { action: undefined });
+    }
+  }
+
+  async function handlePrepare(document: PaperLensDocument) {
+    updateWorkflowState(document.id, { action: "preparing", workflowError: undefined });
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const job = await triggerDocumentIngestion(document.id);
+      if (job.status !== "completed") {
+        throw new Error(job.error_message ?? `Ingestion ended with status ${job.status}.`);
+      }
+      const chunks = await createDocumentChunks(document.id);
+      await refreshDocuments();
+      setSuccessMessage(`Prepared ${document.original_filename} with ${chunks.length} searchable chunks.`);
+    } catch (prepareError) {
+      const message = prepareError instanceof Error ? prepareError.message : "Document preparation failed.";
+      updateWorkflowState(document.id, { workflowError: message });
+      setError(message);
+      await loadWorkflowState(document.id);
+    } finally {
+      updateWorkflowState(document.id, { action: undefined });
+    }
+  }
+
   return (
     <section className="workspace" aria-label="PaperLens document workspace">
       <div className="workspaceHeader">
         <div>
-          <p className="eyebrow">Milestone 2</p>
+          <p className="eyebrow">Milestone 7</p>
           <h2>Document library</h2>
           <p className="sectionText">
-            Upload papers into local storage and verify that the FastAPI document endpoints are wired into
-            the interface.
+            Upload a local source file, prepare extracted text and chunks, then ask evidence-preview
+            questions in chat.
           </p>
         </div>
         <div className={`statusPill ${apiState}`}>
@@ -209,12 +323,20 @@ export function DocumentLibrary() {
       ) : null}
 
       <div className="documentList">
-        {documents.map((document) => (
-          <article className="documentCard" key={document.id}>
-            <div>
+        {documents.map((document) => {
+          const workflow = workflowStates[document.id];
+          const action = workflow?.action;
+          const isBusy = Boolean(action || workflow?.isLoading);
+          const chunkCount = workflow?.chunkCount ?? 0;
+
+          return (
+            <article className="documentCard workflowCard" key={document.id}>
               <div className="documentMetaLine">
                 <span className="kindBadge">{getDocumentKind(document)}</span>
                 <span className="statusBadge">{document.status}</span>
+                {workflow?.ingestion ? (
+                  <span className="statusBadge">ingestion {workflow.ingestion.status}</span>
+                ) : null}
               </div>
               <h4>{document.title}</h4>
               <p>{document.original_filename}</p>
@@ -231,13 +353,64 @@ export function DocumentLibrary() {
                   <dt>SHA-256</dt>
                   <dd>{document.sha256.slice(0, 16)}...</dd>
                 </div>
+                <div>
+                  <dt>Chunks</dt>
+                  <dd>{workflow?.isLoading ? "Checking..." : `${chunkCount} ready`}</dd>
+                </div>
               </dl>
-            </div>
-            <button type="button" className="dangerButton" onClick={() => void handleDelete(document)}>
-              Delete
-            </button>
-          </article>
-        ))}
+
+              <div className="workflowPanel">
+                <div className="workflowActions">
+                  <button
+                    type="button"
+                    className="secondaryButton"
+                    onClick={() => void handleIngest(document)}
+                    disabled={isBusy}
+                  >
+                    {action === "ingesting" ? "Ingesting..." : "Ingest / retry"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondaryButton"
+                    onClick={() => void handleChunk(document)}
+                    disabled={isBusy}
+                  >
+                    {action === "chunking" ? "Chunking..." : "Chunk / rechunk"}
+                  </button>
+                  <button type="button" onClick={() => void handlePrepare(document)} disabled={isBusy}>
+                    {action === "preparing" ? "Preparing..." : "Prepare document"}
+                  </button>
+                  <button
+                    type="button"
+                    className="dangerButton"
+                    onClick={() => void handleDelete(document)}
+                    disabled={isBusy}
+                  >
+                    Delete
+                  </button>
+                </div>
+
+                {workflow?.workflowError ? <div className="alert error">{workflow.workflowError}</div> : null}
+
+                {workflow?.preview ? (
+                  <div className="previewPanel">
+                    <div className="previewHeader">
+                      <strong>Extracted text preview</strong>
+                      <span>
+                        {workflow.preview.preview_characters} of {workflow.preview.total_characters} chars
+                      </span>
+                    </div>
+                    <p>{workflow.preview.text}</p>
+                  </div>
+                ) : (
+                  <p className="hint">
+                    No extracted text preview yet. Ingest or prepare a text, Markdown, or text-layer PDF file.
+                  </p>
+                )}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );

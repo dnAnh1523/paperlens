@@ -200,7 +200,7 @@ export function ChatWorkspace() {
     <section className="workspace chatWorkspace" aria-label="PaperLens chat workspace">
       <div className="workspaceHeader">
         <div>
-          <p className="eyebrow">Milestone 6</p>
+          <p className="eyebrow">Milestone 7</p>
           <h2>Evidence chat</h2>
           <p className="sectionText">
             Ask over chunked local documents and inspect the deterministic evidence preview from FastAPI.
@@ -271,7 +271,7 @@ export function ChatWorkspace() {
             {!isLoadingMessages && messages.length === 0 ? (
               <div className="emptyState">
                 <strong>No messages yet.</strong>
-                <p>Ask a question after ingestion and chunking have produced searchable evidence.</p>
+                <p>Prepare a document first, then ask using terms that appear in the extracted text.</p>
               </div>
             ) : null}
 
@@ -304,6 +304,11 @@ export function ChatWorkspace() {
                         </dl>
                       </div>
                     ))}
+                  </div>
+                ) : null}
+                {message.role === "assistant" && message.evidence.length === 0 ? (
+                  <div className="noEvidenceHint">
+                    Prepare documents from the library, then ask with words that appear in those chunks.
                   </div>
                 ) : null}
               </article>

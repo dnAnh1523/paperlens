@@ -57,6 +57,15 @@ POST /documents/{document_id}/chunks
 The chunking service reads `extracted_text.txt`, deletes old chunks for that document, writes fresh `document_chunks` rows, and writes `chunks.json`.
 Retrying ingestion invalidates existing chunks because the extracted text may have changed.
 
+## Browser workflow
+
+Milestone 7 exposes ingestion and chunking controls in the document library UI. The Prepare document action runs:
+
+1. `POST /documents/{document_id}/ingestion`
+2. `POST /documents/{document_id}/chunks`
+
+The backend endpoints remain explicit. The UI simply performs the normal local workflow in sequence and shows ingestion status, extracted text preview, and chunk count.
+
 ## Local commands
 
 From `apps/api`:

@@ -154,3 +154,15 @@ Implemented in feature branch `feature/m6-chat-ui`:
 
 Current limitation: the UI relies on already ingested and chunked backend data. It does not yet provide manual chunking controls, source previews, or a PDF/page viewer.
 
+## Milestone 7 Progress: Local End-to-End Workflow
+
+Implemented in feature branch `feature/m7-e2e-local-workflow`:
+
+- Document cards show ingestion status, chunk count, workflow errors, and extracted text preview.
+- Browser actions for ingestion retry, chunking/rechunking, and preparing a document.
+- Prepare document runs existing ingestion and chunking endpoints in sequence.
+- Chat empty and no-evidence states guide users to prepare documents before asking questions.
+- No new backend service, Docker dependency, vector database, embedding model, LLM call, or paid API integration.
+
+Current limitation: preparation is still synchronous and best suited to small local `.txt`, `.md`, and text-layer `.pdf` files.
+

@@ -177,3 +177,16 @@ Implemented in feature branch `feature/m8-source-evidence-preview`:
 - No PDF page rendering, vector database, embedding model, LLM call, Docker service, or paid API integration.
 
 Current limitation: source preview shows extracted text chunks only. It does not yet render original PDF pages or highlight positions in the source file.
+
+## Milestone 9 Progress: Evaluation Harness
+
+Implemented in feature branch `feature/m9-evaluation-harness`:
+
+- Local retrieval evaluation dataset format under `evals/datasets/`.
+- Committed sample fixture under `evals/fixtures/`.
+- CLI script `scripts/run_retrieval_eval.py` that runs against local SQLite chunk state.
+- Metrics for `hit@k`, mean reciprocal rank, and no-result query count.
+- Optional JSON reports under ignored `evals/runs/`.
+- Unit tests for dataset parsing, evidence matching, and metric summaries.
+
+Current limitation: evaluation is lexical and term-based only. It does not use LLM judging, embeddings, semantic similarity, or vector retrieval.

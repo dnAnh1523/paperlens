@@ -9,6 +9,7 @@ node_modules/
 dist/
 build/
 data/
+evals/runs/
 *.db
 *.sqlite
 .DS_Store

@@ -15,3 +15,12 @@ As a user, I want to see the source page/table/figure behind an answer so that I
 ## Compare results
 
 As a user, I want PaperLens to compare methods/results across tables and figures so that I can understand experimental outcomes.
+
+## Manage uploaded documents
+
+As a user, I want to view and delete uploaded documents so that I can keep the local PaperLens workspace clean during experiments.
+
+## Verify system readiness
+
+As a developer, I want the web app to display API connectivity so that I can quickly diagnose whether frontend/backend integration is working during local development.
+

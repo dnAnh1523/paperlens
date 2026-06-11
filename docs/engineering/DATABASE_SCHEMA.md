@@ -29,13 +29,28 @@ Tracks the ingestion lifecycle for a document.
 |---|---|---|
 | `id` | string UUID | Primary key |
 | `document_id` | string UUID | Foreign key to `documents.id` |
-| `status` | enum | `pending`, `running`, `succeeded`, or `failed` |
+| `status` | enum | `pending`, `running`, `completed`, or `failed` |
 | `stage` | string | Current pipeline stage, initially `queued` |
 | `error_message` | text nullable | Failure detail |
 | `created_at` | datetime | Creation timestamp |
 | `updated_at` | datetime | Last update timestamp |
 | `started_at` | datetime nullable | Start timestamp |
 | `finished_at` | datetime nullable | End timestamp |
+
+### `document_chunks`
+
+Stores source-grounded text chunks derived from extracted document text.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `chunk_id` | string UUID | Primary key |
+| `document_id` | string UUID | Foreign key to `documents.id` |
+| `chunk_index` | integer | Stable order within a document |
+| `text` | text | Chunk text |
+| `char_start` | integer | Start offset in extracted text |
+| `char_end` | integer | End offset in extracted text |
+| `estimated_token_count` | integer | Character-based token estimate |
+| `created_at` | datetime | Creation timestamp |
 
 ## Current migration strategy
 

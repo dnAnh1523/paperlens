@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.document import Document
+from app.models.document_chunk import DocumentChunk
 from app.models.ingestion_job import IngestionJob
+from app.schemas.chunk import DocumentChunkRead
 from app.schemas.document import (
     DocumentDetailRead,
     DocumentRead,
@@ -15,6 +17,12 @@ from app.services.document_service import (
     delete_document,
     get_document,
     list_documents,
+)
+from app.services.chunking_service import (
+    MissingExtractedTextError,
+    chunk_document,
+    get_document_chunk,
+    list_document_chunks,
 )
 from app.services.ingestion_service import (
     get_latest_ingestion_job,
@@ -47,6 +55,47 @@ def read_document(document_id: str, db: Session = Depends(get_db)) -> Document:
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return document
+
+
+@router.post("/{document_id}/chunks", response_model=list[DocumentChunkRead])
+def create_document_chunks(document_id: str, db: Session = Depends(get_db)) -> list[DocumentChunk]:
+    document = get_document(db, document_id)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    try:
+        return chunk_document(db, document)
+    except MissingExtractedTextError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get("/{document_id}/chunks", response_model=list[DocumentChunkRead])
+def read_document_chunks(
+    document_id: str,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[DocumentChunk]:
+    document = get_document(db, document_id)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return list_document_chunks(db, document_id=document_id, offset=offset, limit=limit)
+
+
+@router.get("/{document_id}/chunks/{chunk_id}", response_model=DocumentChunkRead)
+def read_document_chunk(
+    document_id: str,
+    chunk_id: str,
+    db: Session = Depends(get_db),
+) -> DocumentChunk:
+    document = get_document(db, document_id)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    chunk = get_document_chunk(db, document_id=document_id, chunk_id=chunk_id)
+    if chunk is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found")
+    return chunk
 
 
 @router.get("/{document_id}/ingestion", response_model=IngestionJobRead)

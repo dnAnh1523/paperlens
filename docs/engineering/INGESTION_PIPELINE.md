@@ -10,6 +10,7 @@ PaperLens ingestion is local-native first. The Milestone 3 foundation runs synch
 4. The ingestion service extracts basic text.
 5. Extracted artifacts are written under `data/storage/artifacts/documents/{document_id}/`.
 6. SQLite metadata is updated with the ingestion status.
+7. Chunking is run explicitly with `POST /documents/{document_id}/chunks`.
 
 ## Supported extraction
 
@@ -39,9 +40,22 @@ data/storage/
   artifacts/documents/{document_id}/
     extracted_text.txt
     metadata.json
+    chunks.json
 ```
 
 `extracted_text.txt` contains UTF-8 text. `metadata.json` records the extractor name, source path, content type, character count, and extraction timestamp.
+`chunks.json` is written after explicit chunking and mirrors the SQLite chunk rows for local inspection.
+
+## Chunking behavior
+
+Chunking is explicit in Milestone 4. Successful ingestion creates extracted text, but it does not automatically create chunks. Run:
+
+```http
+POST /documents/{document_id}/chunks
+```
+
+The chunking service reads `extracted_text.txt`, deletes old chunks for that document, writes fresh `document_chunks` rows, and writes `chunks.json`.
+Retrying ingestion invalidates existing chunks because the extracted text may have changed.
 
 ## Local commands
 
@@ -61,5 +75,6 @@ npm run build
 
 - Ingestion is synchronous and runs inside the API request for now.
 - PDF extraction is text-layer only; scanned PDFs need OCR later.
-- No page rendering, table extraction, figure extraction, equation parsing, chunking, or vector indexing is implemented yet.
+- Chunking is character-based and paragraph-aware; it is not semantic chunking.
+- No page rendering, table extraction, figure extraction, equation parsing, embeddings, or vector indexing is implemented yet.
 - No Celery, Redis, Docker, MinIO, Qdrant server, or cloud service is required for this milestone.

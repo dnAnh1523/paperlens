@@ -80,3 +80,17 @@ Implemented in feature branch `feature/m1-backend-document-models`:
 - Tests for upload, list, read, and unsupported content type rejection.
 
 Current limitation: ingestion jobs are queued metadata only. Actual PDF parsing, figure/table extraction, and vector indexing are not implemented yet.
+
+## Milestone 2 Progress: Document Library UI
+
+Implemented in feature branch `feature/m2-document-library-ui`:
+
+- Next.js document library section on the home page.
+- Browser-side API client for `/health` and `/documents`.
+- File upload form for PDFs, text, Markdown, CSV, PNG, JPEG, and WEBP.
+- Uploaded document list with file type, status, size, upload time, and SHA-256 preview.
+- Document deletion from the UI.
+- Manual refresh and API connectivity state.
+
+Current limitation: the UI only manages uploaded source files. It does not yet show ingestion progress beyond the document status field, and no PDF parsing or RAG chat UI is implemented yet.
+

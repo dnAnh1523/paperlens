@@ -1,3 +1,5 @@
+import { DocumentLibrary } from "./components/DocumentLibrary";
+
 export default function HomePage() {
   return (
     <main className="page">
@@ -22,6 +24,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <DocumentLibrary />
     </main>
   );
 }

@@ -16,6 +16,7 @@ from app.schemas.document import (
     IngestionJobRead,
     IngestionTextPreviewRead,
 )
+from app.schemas.embedding import DocumentEmbeddingStatusRead
 from app.services.document_service import (
     create_document_from_upload,
     delete_document,
@@ -33,6 +34,14 @@ from app.services.ingestion_service import (
     get_latest_ingestion_job,
     get_text_preview,
     run_ingestion,
+)
+from app.services.embedding_service import (
+    DEFAULT_EMBEDDING_DIMENSION,
+    MAX_EMBEDDING_DIMENSION,
+    NoChunksForEmbeddingError,
+    create_default_embedding_provider,
+    get_document_embedding_status,
+    index_document_embeddings,
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -85,6 +94,47 @@ def read_document_chunks(
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return list_document_chunks(db, document_id=document_id, offset=offset, limit=limit)
+
+
+@router.post("/{document_id}/embeddings", response_model=DocumentEmbeddingStatusRead)
+def create_document_embeddings(
+    document_id: str,
+    dimension: int = Query(
+        default=DEFAULT_EMBEDDING_DIMENSION,
+        ge=1,
+        le=MAX_EMBEDDING_DIMENSION,
+    ),
+    db: Session = Depends(get_db),
+) -> DocumentEmbeddingStatusRead:
+    document = get_document(db, document_id)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    provider = create_default_embedding_provider(dimension=dimension)
+    try:
+        embedding_status = index_document_embeddings(db, document=document, provider=provider)
+    except NoChunksForEmbeddingError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return DocumentEmbeddingStatusRead(**embedding_status.__dict__)
+
+
+@router.get("/{document_id}/embeddings/status", response_model=DocumentEmbeddingStatusRead)
+def read_document_embedding_status(
+    document_id: str,
+    dimension: int = Query(
+        default=DEFAULT_EMBEDDING_DIMENSION,
+        ge=1,
+        le=MAX_EMBEDDING_DIMENSION,
+    ),
+    db: Session = Depends(get_db),
+) -> DocumentEmbeddingStatusRead:
+    document = get_document(db, document_id)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    provider = create_default_embedding_provider(dimension=dimension)
+    embedding_status = get_document_embedding_status(db, document_id=document_id, provider=provider)
+    return DocumentEmbeddingStatusRead(**embedding_status.__dict__)
 
 
 @router.get("/{document_id}/chunks/{chunk_id}/context", response_model=DocumentChunkContextRead)

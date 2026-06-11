@@ -57,6 +57,25 @@ Stores source-grounded text chunks derived from extracted document text.
 | `estimated_token_count` | integer | Character-based token estimate |
 | `created_at` | datetime | Creation timestamp |
 
+### `chunk_embeddings`
+
+Stores local embedding vectors for chunks. Milestone 13 uses deterministic fake/hash vectors only; the
+table is scaffolding for later semantic retrieval.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `chunk_embedding_id` | string UUID | Primary key |
+| `chunk_id` | string UUID | Foreign key to `document_chunks.chunk_id` |
+| `document_id` | string UUID | Foreign key to `documents.id` |
+| `provider` | string | Embedding provider name, for example `local-hash` |
+| `model` | string | Embedding model name, for example `fake-hash-v1` |
+| `dimension` | integer | Vector dimension |
+| `vector` | text | JSON array of floats stored in SQLite |
+| `created_at` | datetime | Creation timestamp |
+
+The table has a uniqueness constraint on `chunk_id`, `provider`, and `model`. Re-indexing a document
+deletes existing rows for the same provider/model and recreates them from the current chunks.
+
 ### `conversations`
 
 Stores chat conversation metadata.
@@ -106,8 +125,9 @@ Stores evidence snapshots linked to assistant messages.
 
 ## Current migration strategy
 
-The API calls `Base.metadata.create_all()` at startup. For Milestones 11 and 12, startup also performs
-a small SQLite-only additive column check for page-aware chunk metadata and stable evidence snapshot
-metadata. This keeps local Windows development moving without introducing Alembic yet.
+The API calls `Base.metadata.create_all()` at startup. Milestone 13 adds `chunk_embeddings` through the
+same local startup creation path. For Milestones 11 and 12, startup also performs a small SQLite-only
+additive column check for page-aware chunk metadata and stable evidence snapshot metadata. This keeps
+local Windows development moving without introducing Alembic yet.
 
 Later milestones should introduce Alembic migrations before schema changes become complex.

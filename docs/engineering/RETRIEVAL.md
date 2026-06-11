@@ -47,6 +47,29 @@ GET /search?query=...&limit=10
 
 Milestone 4 uses a SQLite `LIKE`-based lexical fallback instead of FTS5. This keeps setup reliable across local Windows 11 SQLite builds and avoids extra migration complexity. The search service tokenizes the query, filters chunks containing at least one query term, scores matches by term frequency with a small phrase-match bonus, and returns ranked chunks with document metadata. Milestone 11 adds nullable page metadata to returned chunks when available.
 
+## Embedding Index Scaffolding
+
+Milestone 13 adds embedding provider and storage scaffolding without changing retrieval ranking. The
+default provider is `local-hash` / `fake-hash-v1`, a deterministic local fake provider that turns text
+into small normalized hash vectors. It is useful for testing indexing and storage paths, not semantic
+quality.
+
+Embedding rows are stored in SQLite table `chunk_embeddings` and can be built explicitly:
+
+```http
+POST /documents/{document_id}/embeddings?dimension=64
+```
+
+Status can be checked with:
+
+```http
+GET /documents/{document_id}/embeddings/status?dimension=64
+```
+
+Re-indexing removes existing rows for the same document/provider/model and recreates them from the
+current chunks. Re-running chunking also clears stale embedding rows for that document. Lexical search
+and chat still use the existing `LIKE`-based retrieval service.
+
 ## Chat evidence
 
 Milestone 5 reuses the same lexical search service for chat. When a user posts a message, the backend
@@ -94,7 +117,8 @@ snapshot fallback when live context is no longer available.
 
 ## Limitations
 
-- No embeddings or vector search yet.
+- No real semantic embeddings or vector search yet.
+- Stored fake/hash embeddings are not used for ranking yet.
 - No semantic reranking yet.
 - No citation assembly beyond chunk metadata.
 - Chat responses are deterministic evidence previews, not generated answers.

@@ -130,6 +130,43 @@ Returns document metadata, the selected chunk, previous chunks, and next chunks 
 `chunk_index`. `before` and `after` must be between 0 and 5.
 Selected and neighboring chunks include page metadata when available.
 
+### Index local chunk embeddings
+
+```http
+POST /documents/{document_id}/embeddings?dimension=64
+```
+
+Builds or rebuilds deterministic local fake embeddings for the document's current chunks. This endpoint
+does not call external APIs and does not change lexical retrieval behavior. `dimension` must be between
+1 and 1024 and defaults to 64.
+
+Response:
+
+```json
+{
+  "document_id": "document-uuid",
+  "provider": "local-hash",
+  "model": "fake-hash-v1",
+  "dimension": 64,
+  "chunk_count": 3,
+  "embedding_count": 3,
+  "is_indexed": true,
+  "latest_created_at": "2026-06-11T16:00:00Z"
+}
+```
+
+If the document has no chunks, the endpoint returns `409 Conflict` with a message telling the user to
+run chunking first.
+
+### Get local embedding status
+
+```http
+GET /documents/{document_id}/embeddings/status?dimension=64
+```
+
+Returns chunk count and embedding count for the local fake provider/model/dimension. `is_indexed` is
+`true` only when the document has at least one chunk and each current chunk has a stored embedding row.
+
 ### Delete document
 
 ```http

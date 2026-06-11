@@ -11,6 +11,7 @@ from app.ingestion.artifacts import (
     read_page_texts,
     write_chunks_artifact,
 )
+from app.models.chunk_embedding import ChunkEmbedding
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 
@@ -131,6 +132,7 @@ def split_text_into_chunks(
 
 
 def delete_chunks_for_document(db: Session, document_id: str) -> None:
+    db.execute(delete(ChunkEmbedding).where(ChunkEmbedding.document_id == document_id))
     db.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document_id))
     db.commit()
 

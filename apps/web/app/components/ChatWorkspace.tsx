@@ -38,6 +38,13 @@ function getMessageLabel(message: ChatMessage): string {
   return message.role === "user" ? "You" : "PaperLens";
 }
 
+function formatChunkLocation(chunk: DocumentChunk): string {
+  if (chunk.page_number !== null) {
+    return `Page ${chunk.page_number}, chunk ${chunk.chunk_index}`;
+  }
+  return `Chunk ${chunk.chunk_index}`;
+}
+
 function SourceContextChunk({
   chunk,
   label,
@@ -51,7 +58,7 @@ function SourceContextChunk({
     <section className={isSelected ? "sourceChunk selected" : "sourceChunk"}>
       <div className="sourceChunkHeader">
         <strong>{label}</strong>
-        <span>Chunk {chunk.chunk_index}</span>
+        <span>{formatChunkLocation(chunk)}</span>
       </div>
       <p>{chunk.text}</p>
     </section>
@@ -286,10 +293,10 @@ export function ChatWorkspace() {
     <section className="workspace chatWorkspace" aria-label="PaperLens chat workspace">
       <div className="workspaceHeader">
         <div>
-          <p className="eyebrow">Milestone 8</p>
+          <p className="eyebrow">Milestone 11</p>
           <h2>Evidence chat</h2>
           <p className="sectionText">
-            Ask over chunked local documents, then open evidence cards to inspect source context.
+            Ask over chunked local documents, then open evidence cards to inspect page-aware source context.
           </p>
         </div>
         <div className="statusPill">
@@ -401,6 +408,10 @@ export function ChatWorkspace() {
                               <dd>{evidence.document_id.slice(0, 8)}</dd>
                             </div>
                             <div>
+                              <dt>Page</dt>
+                              <dd>{evidence.page_number ?? "N/A"}</dd>
+                            </div>
+                            <div>
                               <dt>Chunk</dt>
                               <dd>{evidence.chunk_id.slice(0, 8)}</dd>
                             </div>
@@ -420,7 +431,7 @@ export function ChatWorkspace() {
                                       <strong>{context.document.original_filename}</strong>
                                       <span>{context.document.title}</span>
                                     </div>
-                                    <span>Selected chunk {context.selected_chunk.chunk_index}</span>
+                                    <span>{formatChunkLocation(context.selected_chunk)}</span>
                                   </div>
 
                                   <dl className="sourceMetaGrid">
@@ -431,6 +442,19 @@ export function ChatWorkspace() {
                                     <div>
                                       <dt>Chunk id</dt>
                                       <dd>{context.selected_chunk.chunk_id.slice(0, 8)}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Page</dt>
+                                      <dd>{context.selected_chunk.page_number ?? "N/A"}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Page offsets</dt>
+                                      <dd>
+                                        {context.selected_chunk.page_start !== null &&
+                                        context.selected_chunk.page_end !== null
+                                          ? `${context.selected_chunk.page_start}-${context.selected_chunk.page_end}`
+                                          : "N/A"}
+                                      </dd>
                                     </div>
                                     <div>
                                       <dt>Offsets</dt>

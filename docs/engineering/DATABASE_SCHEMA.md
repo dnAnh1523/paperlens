@@ -49,6 +49,11 @@ Stores source-grounded text chunks derived from extracted document text.
 | `text` | text | Chunk text |
 | `char_start` | integer | Start offset in extracted text |
 | `char_end` | integer | End offset in extracted text |
+| `page_number` | integer nullable | Source page number when chunked from a page artifact |
+| `page_start` | integer nullable | Start offset within the source page text |
+| `page_end` | integer nullable | End offset within the source page text |
+| `source_kind` | string nullable | Source artifact kind, for example `page_text` or `extracted_text` |
+| `source_path` | text nullable | Local source artifact path used to create the chunk |
 | `estimated_token_count` | integer | Character-based token estimate |
 | `created_at` | datetime | Creation timestamp |
 
@@ -88,9 +93,14 @@ Stores evidence snapshots linked to assistant messages.
 | `rank` | integer | Retrieval rank used in the assistant response |
 | `score` | float | Lexical retrieval score |
 | `excerpt` | text | Snapshot text stored with the message |
+| `page_number` | integer nullable | Source page number copied from the retrieved chunk |
+| `page_start` | integer nullable | Start offset within the source page text |
+| `page_end` | integer nullable | End offset within the source page text |
 
 ## Current migration strategy
 
-For Milestone 1, the API calls `Base.metadata.create_all()` at startup. This is acceptable for the local-native scaffold.
+The API calls `Base.metadata.create_all()` at startup. For Milestone 11, startup also performs a small
+SQLite-only additive column check for page-aware chunk and evidence metadata. This keeps local Windows
+development moving without introducing Alembic yet.
 
 Later milestones should introduce Alembic migrations before schema changes become complex.

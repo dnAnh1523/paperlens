@@ -14,6 +14,11 @@ class DocumentChunkRead(BaseModel):
     text: str
     char_start: int
     char_end: int
+    page_number: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
+    source_kind: str | None = None
+    source_path: str | None = None
     estimated_token_count: int
     created_at: datetime
 

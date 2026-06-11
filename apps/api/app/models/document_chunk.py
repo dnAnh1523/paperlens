@@ -28,6 +28,11 @@ class DocumentChunk(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     char_start: Mapped[int] = mapped_column(Integer, nullable=False)
     char_end: Mapped[int] = mapped_column(Integer, nullable=False)
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    page_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    page_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     estimated_token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -88,10 +88,13 @@ def _build_assistant_content(question: str, results: list[ChunkSearchResult]) ->
         "Retrieved evidence:",
     ]
     for result in results:
+        page_label = (
+            f", page={result.chunk.page_number}" if result.chunk.page_number is not None else ""
+        )
         lines.append(
             f"{result.rank}. {result.document.title} "
             f"(document_id={result.document.id}, chunk_id={result.chunk.chunk_id}, "
-            f"chunk_index={result.chunk.chunk_index}, score={result.score:g})"
+            f"chunk_index={result.chunk.chunk_index}{page_label}, score={result.score:g})"
         )
         lines.append(f"   {_excerpt(result.chunk.text, max_chars=260)}")
     lines.append("")
@@ -112,6 +115,9 @@ def _create_evidence_rows(
             rank=result.rank,
             score=result.score,
             excerpt=_excerpt(result.chunk.text),
+            page_number=result.chunk.page_number,
+            page_start=result.chunk.page_start,
+            page_end=result.chunk.page_end,
         )
         for result in results
     ]

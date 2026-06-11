@@ -26,10 +26,12 @@ Milestone 6 adds a Next.js chat workspace to the home page:
 Milestone 8 makes those evidence cards expandable. Opening a card loads source context from
 `GET /documents/{document_id}/chunks/{chunk_id}/context` and shows the selected chunk, source offsets,
 estimated token count, document filename, and neighboring chunks.
+Milestone 11 adds page numbers and page-local offsets to those cards when the retrieved chunk came from
+a PDF page artifact.
 
 ## Response behavior
 
-Assistant messages always identify themselves as evidence previews. When chunks match, the response lists retrieved evidence snippets with document and chunk references. When no chunks match, the response clearly says no relevant evidence was found and suggests chunking ingested documents or using terms from uploaded sources.
+Assistant messages always identify themselves as evidence previews. When chunks match, the response lists retrieved evidence snippets with document, chunk, and page references when page metadata is available. When no chunks match, the response clearly says no relevant evidence was found and suggests chunking ingested documents or using terms from uploaded sources.
 
 ## Evidence storage
 
@@ -42,6 +44,9 @@ Each evidence row stores:
 - `rank`
 - `score`
 - `excerpt`
+- `page_number`
+- `page_start`
+- `page_end`
 
 The excerpt is a snapshot of retrieved chunk text. It is stored with the message so the conversation remains interpretable even if chunks are regenerated later.
 

@@ -32,6 +32,9 @@ class MessageEvidenceRead(BaseModel):
     rank: int
     score: float
     excerpt: str
+    page_number: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
 
 
 class MessageRead(BaseModel):

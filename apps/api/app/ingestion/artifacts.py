@@ -36,6 +36,28 @@ def read_extracted_text(document_id: str) -> str | None:
     return text_path.read_text(encoding="utf-8")
 
 
+def read_page_texts(document_id: str) -> list[tuple[PageExtraction, Path]]:
+    pages_dir = document_artifact_dir(document_id) / "pages"
+    if not pages_dir.exists():
+        return []
+
+    page_texts: list[tuple[PageExtraction, Path]] = []
+    for page_path in sorted(pages_dir.glob("page_*.txt")):
+        page_number_text = page_path.stem.removeprefix("page_")
+        if not page_number_text.isdigit():
+            continue
+        page_texts.append(
+            (
+                PageExtraction(
+                    page_number=int(page_number_text),
+                    text=page_path.read_text(encoding="utf-8"),
+                ),
+                page_path,
+            )
+        )
+    return page_texts
+
+
 def write_metadata(document_id: str, metadata: dict[str, Any]) -> Path:
     artifact_dir = document_artifact_dir(document_id)
     artifact_dir.mkdir(parents=True, exist_ok=True)

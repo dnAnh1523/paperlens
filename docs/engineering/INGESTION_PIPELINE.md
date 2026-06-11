@@ -79,6 +79,11 @@ POST /documents/{document_id}/chunks
 The chunking service reads `extracted_text.txt`, deletes old chunks for that document, writes fresh `document_chunks` rows, and writes `chunks.json`.
 Retrying ingestion invalidates existing chunks because the extracted text may have changed.
 
+For PDFs with page artifacts, Milestone 11 chunks each `pages/page_*.txt` file independently. Each
+chunk stores `page_number`, page-local offsets, extracted-text offsets, source artifact kind, and source
+artifact path. Text and Markdown documents keep the original `extracted_text.txt` chunking path and have
+null page fields.
+
 ## Browser workflow
 
 Milestone 7 exposes ingestion and chunking controls in the document library UI. The Prepare document action runs:

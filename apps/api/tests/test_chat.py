@@ -18,6 +18,20 @@ def _unique_text(term: str) -> str:
     )
 
 
+def _text_layer_pdf(pages: list[str]) -> bytes:
+    import fitz
+
+    pdf = fitz.open()
+    for text in pages:
+        page = pdf.new_page()
+        if text:
+            page.insert_text((72, 72), text, fontsize=11)
+    try:
+        return pdf.tobytes()
+    finally:
+        pdf.close()
+
+
 def _create_chunked_document(client: TestClient, term: str) -> dict[str, object]:
     response = client.post(
         "/documents",
@@ -29,6 +43,31 @@ def _create_chunked_document(client: TestClient, term: str) -> dict[str, object]
     chunk_response = client.post(f"/documents/{document['id']}/chunks")
     assert chunk_response.status_code == 200
     assert len(chunk_response.json()) >= 1
+    return document
+
+
+def _create_chunked_pdf_document(client: TestClient, term: str) -> dict[str, object]:
+    response = client.post(
+        "/documents",
+        files={
+            "file": (
+                f"{term}.pdf",
+                _text_layer_pdf(
+                    [
+                        "Page one contains background context.",
+                        f"Page two contains chat evidence term {term}.",
+                    ]
+                ),
+                "application/pdf",
+            )
+        },
+    )
+    assert response.status_code == 201
+    document = response.json()
+
+    chunk_response = client.post(f"/documents/{document['id']}/chunks")
+    assert chunk_response.status_code == 200
+    assert len(chunk_response.json()) >= 2
     return document
 
 
@@ -80,6 +119,30 @@ def test_post_message_creates_user_assistant_and_evidence() -> None:
     assert evidence["rank"] == 1
     assert evidence["score"] > 0
     assert term in evidence["excerpt"]
+    assert evidence["page_number"] is None
+
+
+def test_post_message_evidence_includes_pdf_page_metadata() -> None:
+    client = TestClient(app)
+    term = _term("chatpdfpagegamma")
+    document = _create_chunked_pdf_document(client, term)
+    conversation = client.post("/conversations").json()
+
+    response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": term},
+        params={"limit": 3},
+    )
+
+    assert response.status_code == 200
+    assistant = response.json()["assistant_message"]
+    assert "page=2" in assistant["content"]
+    assert len(assistant["evidence"]) >= 1
+    evidence = assistant["evidence"][0]
+    assert evidence["document_id"] == document["id"]
+    assert evidence["page_number"] == 2
+    assert evidence["page_start"] is not None
+    assert evidence["page_end"] is not None
 
 
 def test_no_evidence_case_creates_clear_assistant_message() -> None:

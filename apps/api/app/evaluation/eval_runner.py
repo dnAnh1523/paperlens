@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.services.retrieval_service import (
     RetrievalBackendUnavailableError,
+    RetrievalMode,
     get_retrieval_backend_status,
     search_chunks,
 )
@@ -87,6 +88,24 @@ class EvaluationSummary:
 class EvaluationReport:
     summary: EvaluationSummary
     results: list[CaseEvaluationResult]
+
+
+@dataclass(frozen=True)
+class ModeComparisonResult:
+    mode: str
+    available: bool
+    backend: str | None
+    report: EvaluationReport | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class EvaluationComparisonReport:
+    dataset_name: str
+    k: int
+    total_cases: int
+    fts5_available: bool
+    modes: list[ModeComparisonResult]
 
 
 def _coerce_string_list(value: Any, field_name: str) -> list[str]:
@@ -270,7 +289,62 @@ def run_retrieval_eval(
     )
 
 
-def report_to_dict(report: EvaluationReport) -> dict[str, Any]:
+def run_retrieval_eval_comparison(
+    db: Session,
+    dataset: EvalDataset,
+    limit: int | None = None,
+) -> EvaluationComparisonReport:
+    k = limit or dataset.default_k
+    backend_status = get_retrieval_backend_status(db, mode=RetrievalMode.AUTO)
+    mode_results: list[ModeComparisonResult] = []
+
+    for mode in (RetrievalMode.LIKE, RetrievalMode.FTS5, RetrievalMode.AUTO):
+        if mode == RetrievalMode.FTS5 and not backend_status.fts5_available:
+            mode_results.append(
+                ModeComparisonResult(
+                    mode=mode.value,
+                    available=False,
+                    backend=None,
+                    report=None,
+                    error="SQLite FTS5 is not available in this environment.",
+                )
+            )
+            continue
+
+        try:
+            report = run_retrieval_eval(db, dataset, limit=limit, mode=mode.value)
+        except RetrievalBackendUnavailableError as exc:
+            mode_results.append(
+                ModeComparisonResult(
+                    mode=mode.value,
+                    available=False,
+                    backend=None,
+                    report=None,
+                    error=str(exc),
+                )
+            )
+            continue
+
+        mode_results.append(
+            ModeComparisonResult(
+                mode=mode.value,
+                available=True,
+                backend=report.summary.retrieval_backend,
+                report=report,
+                error=None,
+            )
+        )
+
+    return EvaluationComparisonReport(
+        dataset_name=dataset.name,
+        k=k,
+        total_cases=len(dataset.cases),
+        fts5_available=backend_status.fts5_available,
+        modes=mode_results,
+    )
+
+
+def report_to_dict(report: EvaluationReport | EvaluationComparisonReport) -> dict[str, Any]:
     return asdict(report)
 
 
@@ -303,6 +377,71 @@ def format_report(report: EvaluationReport) -> str:
     return "\n".join(lines)
 
 
+def _case_status(result: CaseEvaluationResult) -> str:
+    if result.hit_rank is not None:
+        return f"HIT rank {result.hit_rank}"
+    if result.no_results:
+        return "MISS no results"
+    return "MISS no match"
+
+
+def format_comparison_report(report: EvaluationComparisonReport) -> str:
+    lines = [
+        f"Retrieval comparison: {report.dataset_name}",
+        f"Cases: {report.total_cases}",
+        f"k: {report.k}",
+        f"SQLite FTS5 available: {report.fts5_available}",
+        "",
+        "Mode summary:",
+    ]
+
+    for mode_result in report.modes:
+        if not mode_result.available or mode_result.report is None:
+            lines.append(
+                f"- {mode_result.mode}: unavailable"
+                f" ({mode_result.error or 'backend unavailable'})"
+            )
+            continue
+
+        summary = mode_result.report.summary
+        lines.append(
+            f"- {mode_result.mode}: backend={summary.retrieval_backend}, "
+            f"hit@{summary.k}={summary.hit_at_k:.3f} "
+            f"({summary.hits}/{summary.total_cases}), "
+            f"MRR={summary.mean_reciprocal_rank:.3f}, "
+            f"no-results={summary.no_result_queries}"
+        )
+
+    case_ids: list[str] = []
+    for mode_result in report.modes:
+        if mode_result.report is None:
+            continue
+        for result in mode_result.report.results:
+            if result.case_id not in case_ids:
+                case_ids.append(result.case_id)
+
+    if case_ids:
+        lines.extend(["", "Per-question summary:"])
+
+    for case_id in case_ids:
+        lines.append(f"- {case_id}")
+        for mode_result in report.modes:
+            if not mode_result.available or mode_result.report is None:
+                lines.append(f"  {mode_result.mode}: unavailable")
+                continue
+
+            result_by_case = {
+                result.case_id: result for result in mode_result.report.results
+            }
+            case_result = result_by_case.get(case_id)
+            if case_result is None:
+                lines.append(f"  {mode_result.mode}: not evaluated")
+                continue
+            lines.append(f"  {mode_result.mode}: {_case_status(case_result)}")
+
+    return "\n".join(lines)
+
+
 class EvalRunner:
     """Runs local deterministic retrieval evaluations."""
 
@@ -312,7 +451,11 @@ class EvalRunner:
         db: Session,
         limit: int | None = None,
         mode: str = "auto",
+        compare_modes: bool = False,
     ) -> dict[str, Any]:
         dataset = load_dataset(eval_set_path)
+        if compare_modes:
+            comparison_report = run_retrieval_eval_comparison(db, dataset, limit=limit)
+            return report_to_dict(comparison_report)
         report = run_retrieval_eval(db, dataset, limit=limit, mode=mode)
         return report_to_dict(report)

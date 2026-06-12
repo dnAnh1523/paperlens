@@ -97,12 +97,28 @@ python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_e
 If SQLite FTS5 is unavailable, `--mode fts5` exits with a clear unavailable message. `--mode auto`
 falls back to LIKE.
 
+Milestone 15 adds one-command comparison across LIKE, FTS5 when available, and AUTO:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --compare-modes
+```
+
+The comparison report prints one mode summary table with `hit@k`, MRR, no-result count, and active
+backend for each mode. It also prints a per-question HIT/MISS summary. If FTS5 is unavailable, the
+FTS5 row is marked unavailable and LIKE/AUTO still run.
+
 ## JSON reports
 
 Write a local JSON report with:
 
 ```powershell
 python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode auto --write-json
+```
+
+Write a comparison JSON report with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --compare-modes --write-json
 ```
 
 Generated reports are written under `evals/runs/`, which is gitignored.

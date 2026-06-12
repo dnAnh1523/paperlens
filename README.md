@@ -74,6 +74,18 @@ the web UI, click `Prepare document`, then run the command above. JSON reports c
 python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode like --write-json
 ```
 
+Compare LIKE, FTS5 when available, and AUTO with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --compare-modes
+```
+
+Write the comparison report JSON with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --compare-modes --write-json
+```
+
 Generated reports under `evals/runs/` are ignored by Git.
 
 ## Storage strategy

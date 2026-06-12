@@ -67,6 +67,15 @@ Chunking, re-chunking, and document deletion keep FTS rows aligned when FTS5 is 
 also backfill the FTS table from existing chunks after a local upgrade. If FTS5 is unavailable, the app
 continues to run with the LIKE fallback.
 
+Retrieval evaluation can compare modes on the same dataset:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --compare-modes
+```
+
+The comparison reports `hit@k`, MRR, no-result query count, active backend, and per-question HIT/MISS
+status for LIKE, FTS5 when available, and AUTO.
+
 ## Embedding Index Scaffolding
 
 Milestone 13 adds embedding provider and storage scaffolding without changing retrieval ranking. The

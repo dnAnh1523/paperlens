@@ -257,6 +257,21 @@ Implemented in feature branch `feature/m14-zero-budget-fts5-retrieval`:
 
 Current limitation: FTS5 is lexical, not semantic. If the local SQLite build lacks FTS5, PaperLens keeps running with the LIKE fallback. Fake/hash embeddings still are not used for ranking.
 
+## Milestone 15 Progress: Retrieval Eval Comparison
+
+Implemented in feature branch `feature/m15-retrieval-eval-comparison`:
+
+- Added a comparison report that evaluates the same retrieval dataset with `like`, `fts5` when
+  available, and `auto`.
+- Comparison output includes `hit@k`, MRR, no-result query count, active backend, and per-question
+  HIT/MISS status for each mode.
+- `--compare-modes` does not fail the whole run if FTS5 is unavailable; it marks FTS5 unavailable and
+  continues with LIKE and AUTO.
+- JSON comparison reports can be written under ignored `evals/runs/`.
+
+Current limitation: comparison is still lexical and term-based. It does not evaluate answer generation,
+semantic similarity, embeddings, reranking, or LLM faithfulness.
+
 ## Budget Constraint
 
 PaperLens is developed under a zero-budget constraint.

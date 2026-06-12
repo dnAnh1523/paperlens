@@ -1,15 +1,21 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from app.evaluation.eval_runner import (
     EvalCase,
+    EvaluationComparisonReport,
+    EvaluationReport,
+    ModeComparisonResult,
     RetrievedEvidence,
     compute_summary,
     evaluate_case,
     evidence_matches_case,
+    format_markdown_report,
     load_dataset,
+    report_artifact_to_dict,
 )
 
 
@@ -187,6 +193,106 @@ def test_compute_summary_counts_hit_at_k_mrr_and_no_results() -> None:
     assert summary.hit_at_k == 0.5
     assert summary.mean_reciprocal_rank == 0.5
     assert summary.no_result_queries == 1
+
+
+def test_report_artifact_dict_includes_metadata_for_later_plotting() -> None:
+    result = evaluate_case(
+        EvalCase(
+            case_id="storage",
+            question="What stores metadata?",
+            expected_terms=["SQLite"],
+            expected_answer_terms=[],
+            difficulty="easy",
+            evidence_type="method",
+        ),
+        [_evidence(rank=1)],
+    )
+    report = EvaluationReport(
+        summary=compute_summary(
+            "unit_eval",
+            [result],
+            k=5,
+            retrieval_mode="like",
+            retrieval_backend="like",
+            fts5_available=True,
+        ),
+        results=[result],
+    )
+    generated_at = datetime(2026, 6, 12, 12, 0, tzinfo=timezone.utc)
+
+    payload = report_artifact_to_dict(
+        report,
+        dataset_path="evals/datasets/unit.json",
+        generated_at=generated_at,
+    )
+
+    assert payload["generated_at"] == generated_at.isoformat()
+    assert payload["dataset_path"] == "evals/datasets/unit.json"
+    assert payload["report_kind"] == "single"
+    assert payload["report"]["summary"]["retrieval_mode"] == "like"
+    assert payload["report"]["results"][0]["difficulty"] == "easy"
+    assert payload["report"]["results"][0]["evidence_type"] == "method"
+
+
+def test_markdown_report_includes_metrics_questions_notes_and_limits() -> None:
+    result = evaluate_case(
+        EvalCase(
+            case_id="storage",
+            question="What stores metadata?",
+            expected_terms=["SQLite"],
+            expected_answer_terms=[],
+            difficulty="easy",
+            evidence_type="method",
+        ),
+        [_evidence(rank=1)],
+    )
+    like_report = EvaluationReport(
+        summary=compute_summary(
+            "unit_compare",
+            [result],
+            k=5,
+            retrieval_mode="like",
+            retrieval_backend="like",
+            fts5_available=False,
+        ),
+        results=[result],
+    )
+    comparison = EvaluationComparisonReport(
+        dataset_name="unit_compare",
+        k=5,
+        total_cases=1,
+        fts5_available=False,
+        modes=[
+            ModeComparisonResult(
+                mode="like",
+                available=True,
+                backend="like",
+                report=like_report,
+            ),
+            ModeComparisonResult(
+                mode="fts5",
+                available=False,
+                backend=None,
+                error="SQLite FTS5 is not available in this environment.",
+            ),
+        ],
+    )
+
+    markdown = format_markdown_report(
+        comparison,
+        dataset_path="evals/datasets/unit.json",
+        generated_at=datetime(2026, 6, 12, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert "# Retrieval Evaluation Report: unit_compare" in markdown
+    assert "## Run Metadata" in markdown
+    assert "## Metrics" in markdown
+    assert "| like | like | 1.000 | 1.000 | 0 | yes |" in markdown
+    assert "| fts5 |  |  |  |  | no |" in markdown
+    assert "## Per-Question Results" in markdown
+    assert "| storage | easy | method | HIT rank 1 | unavailable | What stores metadata? |" in markdown
+    assert "## Interpretation Notes" in markdown
+    assert "## Limitations" in markdown
 
 
 def test_eval_runs_output_directory_is_gitignored() -> None:

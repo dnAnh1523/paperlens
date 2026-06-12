@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -386,6 +387,20 @@ def report_to_dict(report: EvaluationReport | EvaluationComparisonReport) -> dic
     return asdict(report)
 
 
+def report_artifact_to_dict(
+    report: EvaluationReport | EvaluationComparisonReport,
+    *,
+    dataset_path: str,
+    generated_at: datetime,
+) -> dict[str, Any]:
+    return {
+        "generated_at": generated_at.isoformat(),
+        "dataset_path": dataset_path,
+        "report_kind": "comparison" if isinstance(report, EvaluationComparisonReport) else "single",
+        "report": report_to_dict(report),
+    }
+
+
 def format_report(report: EvaluationReport) -> str:
     summary = report.summary
     lines = [
@@ -421,6 +436,197 @@ def format_report(report: EvaluationReport) -> str:
             lines.append("  retrieval returned no chunks")
         if result.notes:
             lines.append(f"  notes: {result.notes}")
+    return "\n".join(lines)
+
+
+def _markdown_cell(value: object) -> str:
+    text_value = "" if value is None else str(value)
+    return text_value.replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+
+
+def _format_metric(value: float) -> str:
+    return f"{value:.3f}"
+
+
+def _summary_rows_for_report(
+    report: EvaluationReport | EvaluationComparisonReport,
+) -> list[tuple[str, str | None, str, str, str, str]]:
+    if isinstance(report, EvaluationReport):
+        summary = report.summary
+        return [
+            (
+                summary.retrieval_mode,
+                summary.retrieval_backend,
+                _format_metric(summary.hit_at_k),
+                _format_metric(summary.mean_reciprocal_rank),
+                str(summary.no_result_queries),
+                "yes",
+            )
+        ]
+
+    rows: list[tuple[str, str | None, str, str, str, str]] = []
+    for mode_result in report.modes:
+        if not mode_result.available or mode_result.report is None:
+            rows.append((mode_result.mode, mode_result.backend, "", "", "", "no"))
+            continue
+        summary = mode_result.report.summary
+        rows.append(
+            (
+                mode_result.mode,
+                summary.retrieval_backend,
+                _format_metric(summary.hit_at_k),
+                _format_metric(summary.mean_reciprocal_rank),
+                str(summary.no_result_queries),
+                "yes",
+            )
+        )
+    return rows
+
+
+def _case_results_for_report(
+    report: EvaluationReport | EvaluationComparisonReport,
+) -> list[tuple[str, str, str | None, str | None, dict[str, str]]]:
+    if isinstance(report, EvaluationReport):
+        return [
+            (
+                result.case_id,
+                result.question,
+                result.difficulty,
+                result.evidence_type,
+                {report.summary.retrieval_mode: _case_status(result)},
+            )
+            for result in report.results
+        ]
+
+    case_order: list[str] = []
+    details_by_case: dict[str, tuple[str, str | None, str | None]] = {}
+    statuses_by_case: dict[str, dict[str, str]] = {}
+    for mode_result in report.modes:
+        if not mode_result.available or mode_result.report is None:
+            continue
+        for result in mode_result.report.results:
+            if result.case_id not in case_order:
+                case_order.append(result.case_id)
+                details_by_case[result.case_id] = (
+                    result.question,
+                    result.difficulty,
+                    result.evidence_type,
+                )
+            statuses_by_case.setdefault(result.case_id, {})[mode_result.mode] = _case_status(result)
+
+    return [
+        (
+            case_id,
+            details_by_case[case_id][0],
+            details_by_case[case_id][1],
+            details_by_case[case_id][2],
+            statuses_by_case.get(case_id, {}),
+        )
+        for case_id in case_order
+    ]
+
+
+def format_markdown_report(
+    report: EvaluationReport | EvaluationComparisonReport,
+    *,
+    dataset_path: str,
+    generated_at: datetime,
+) -> str:
+    dataset_name = (
+        report.dataset_name if isinstance(report, EvaluationComparisonReport) else report.summary.dataset_name
+    )
+    report_kind = "Comparison" if isinstance(report, EvaluationComparisonReport) else "Single Mode"
+    modes = (
+        [mode_result.mode for mode_result in report.modes]
+        if isinstance(report, EvaluationComparisonReport)
+        else [report.summary.retrieval_mode]
+    )
+    fts5_available = (
+        report.fts5_available if isinstance(report, EvaluationComparisonReport) else report.summary.fts5_available
+    )
+
+    lines = [
+        f"# Retrieval Evaluation Report: {dataset_name}",
+        "",
+        "## Run Metadata",
+        "",
+        f"- Dataset path: `{dataset_path}`",
+        f"- Dataset name: `{dataset_name}`",
+        f"- Generated at: `{generated_at.isoformat()}`",
+        f"- Report type: {report_kind}",
+        f"- Retrieval modes evaluated: {', '.join(modes)}",
+        f"- SQLite FTS5 available: {fts5_available}",
+        "",
+        "## Metrics",
+        "",
+        "| Mode | Backend | hit@k | MRR | No-result queries | Available |",
+        "| --- | --- | ---: | ---: | ---: | --- |",
+    ]
+
+    for mode, backend, hit_at_k, mrr, no_results, available in _summary_rows_for_report(report):
+        lines.append(
+            "| "
+            + " | ".join(
+                _markdown_cell(value)
+                for value in (mode, backend or "", hit_at_k, mrr, no_results, available)
+            )
+            + " |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Per-Question Results",
+            "",
+        ]
+    )
+
+    mode_headers = modes
+    lines.append(
+        "| Case | Difficulty | Evidence Type | "
+        + " | ".join(_markdown_cell(mode) for mode in mode_headers)
+        + " | Question |"
+    )
+    lines.append(
+        "| --- | --- | --- | "
+        + " | ".join("---" for _mode in mode_headers)
+        + " | --- |"
+    )
+    for case_id, question, difficulty, evidence_type, status_by_mode in _case_results_for_report(report):
+        lines.append(
+            "| "
+            + " | ".join(
+                _markdown_cell(value)
+                for value in (
+                    case_id,
+                    difficulty or "",
+                    evidence_type or "",
+                    *[status_by_mode.get(mode, "unavailable") for mode in mode_headers],
+                    question,
+                )
+            )
+            + " |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Interpretation Notes",
+            "",
+            "- `hit@k` is the fraction of cases where a retrieved chunk matched the expected filename and expected evidence text within the configured retrieval depth.",
+            "- MRR is the mean reciprocal rank of the first matching evidence chunk.",
+            "- A comparison report shows local LIKE, FTS5 when available, and AUTO behavior on the same seeded local SQLite state.",
+            "- Differences between modes are diagnostic signals for the current local lexical retrieval implementation, not final thesis claims.",
+            "",
+            "## Limitations",
+            "",
+            "- This report is generated from local SQLite and local artifact state; seed the intended fixture before comparing runs.",
+            "- Retrieval is lexical only. There is no LLM judge, semantic retrieval, embedding ranking, vector database, OCR, or reranking.",
+            "- FTS5 availability and ranking can vary with the local SQLite build.",
+            "- Synthetic benchmark results are useful for regression tracking and failure analysis, but they are not a final retrieval-quality benchmark.",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 

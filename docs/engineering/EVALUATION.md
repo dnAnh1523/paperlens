@@ -104,6 +104,12 @@ Run the benchmark comparison:
 python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes
 ```
 
+Write reproducible local report artifacts:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes --write-json --write-markdown
+```
+
 This benchmark is intentionally not an anchor-term smoke test. It includes stale pilot results,
 similar figure captions, and repeated generic retrieval terms. Non-perfect scores are useful because
 they show where local lexical retrieval fails or retrieves plausible but wrong evidence.
@@ -161,7 +167,7 @@ The comparison report prints one mode summary table with `hit@k`, MRR, no-result
 backend for each mode. It also prints a per-question HIT/MISS summary. If FTS5 is unavailable, the
 FTS5 row is marked unavailable and LIKE/AUTO still run.
 
-## JSON reports
+## Report files
 
 Write a local JSON report with:
 
@@ -175,7 +181,32 @@ Write a comparison JSON report with:
 python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes --write-json
 ```
 
-Generated reports are written under `evals/runs/`, which is gitignored.
+Write a Markdown report with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes --write-markdown
+```
+
+Write both JSON and Markdown reports with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes --write-json --write-markdown
+```
+
+Generated reports are written under `evals/runs/`, which is gitignored. JSON report files include:
+
+- `generated_at`: UTC timestamp for the local run.
+- `dataset_path`: dataset path passed to the CLI.
+- `report_kind`: `single` or `comparison`.
+- `report`: structured summary, per-case results, retrieved evidence, and mode comparison data.
+
+Markdown report files include:
+
+- run metadata with dataset path/name, timestamp, evaluated modes, and FTS5 availability.
+- metrics table with mode, backend, `hit@k`, MRR, no-result queries, and availability.
+- per-question result table with difficulty, evidence type, and mode-specific status.
+- interpretation notes for reading local lexical retrieval metrics.
+- limitations for thesis-safe reporting.
 
 ## Limitations
 

@@ -98,7 +98,13 @@ Write the comparison report JSON with:
 python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes --write-json
 ```
 
-Generated reports under `evals/runs/` are ignored by Git.
+Write a Markdown report with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes --write-markdown
+```
+
+Generated JSON and Markdown reports under `evals/runs/` are ignored by Git.
 
 ## Run retrieval benchmark v1
 
@@ -114,9 +120,16 @@ Run LIKE, FTS5 when available, and AUTO against the benchmark:
 python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes
 ```
 
+Write thesis-friendly JSON and Markdown report artifacts:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes --write-json --write-markdown
+```
+
 `retrieval_benchmark_v1` uses natural-language questions, distractor paragraphs, table-like rows,
 figure-caption-like text, and limitations. It is intended to reveal local lexical retrieval failure
-modes. Non-perfect scores are expected and useful.
+modes. Non-perfect scores are expected and useful. The Markdown report includes run metadata, a metrics
+table, per-question results, interpretation notes, and limitations.
 
 ## Storage strategy
 

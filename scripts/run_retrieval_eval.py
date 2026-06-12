@@ -53,17 +53,32 @@ def _parse_args() -> argparse.Namespace:
         help="Write the report JSON to evals/runs/.",
     )
     parser.add_argument(
+        "--write-markdown",
+        action="store_true",
+        help="Write a Markdown report to evals/runs/.",
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help="Optional explicit JSON output path. Implies --write-json.",
     )
+    parser.add_argument(
+        "--markdown-output",
+        default=None,
+        help="Optional explicit Markdown output path. Implies --write-markdown.",
+    )
     return parser.parse_args()
 
 
-def _default_output_path(repo_root: Path, dataset_name: str) -> Path:
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+def _default_output_path(
+    repo_root: Path,
+    dataset_name: str,
+    generated_at: datetime,
+    suffix: str,
+) -> Path:
+    timestamp = generated_at.strftime("%Y%m%dT%H%M%SZ")
     safe_name = "".join(char if char.isalnum() or char in ("-", "_") else "_" for char in dataset_name)
-    return repo_root / "evals" / "runs" / f"{safe_name}_{timestamp}.json"
+    return repo_root / "evals" / "runs" / f"{safe_name}_{timestamp}{suffix}"
 
 
 def main() -> int:
@@ -72,9 +87,10 @@ def main() -> int:
     from app.db.session import SessionLocal, init_db
     from app.evaluation.eval_runner import (
         format_comparison_report,
+        format_markdown_report,
         format_report,
         load_dataset,
-        report_to_dict,
+        report_artifact_to_dict,
         run_retrieval_eval,
         run_retrieval_eval_comparison,
     )
@@ -102,13 +118,39 @@ def main() -> int:
 
     print(formatted_report)
 
+    generated_at = datetime.now(timezone.utc).replace(microsecond=0)
+
     if args.write_json or args.output:
         output_path = (
-            Path(args.output) if args.output else _default_output_path(repo_root, output_dataset_name)
+            Path(args.output)
+            if args.output
+            else _default_output_path(repo_root, output_dataset_name, generated_at, ".json")
         )
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(report_to_dict(report), indent=2), encoding="utf-8")
+        payload = report_artifact_to_dict(
+            report,
+            dataset_path=args.dataset,
+            generated_at=generated_at,
+        )
+        output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         print(f"\nWrote JSON report: {output_path}")
+
+    if args.write_markdown or args.markdown_output:
+        markdown_output_path = (
+            Path(args.markdown_output)
+            if args.markdown_output
+            else _default_output_path(repo_root, output_dataset_name, generated_at, ".md")
+        )
+        markdown_output_path.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output_path.write_text(
+            format_markdown_report(
+                report,
+                dataset_path=args.dataset,
+                generated_at=generated_at,
+            ),
+            encoding="utf-8",
+        )
+        print(f"\nWrote Markdown report: {markdown_output_path}")
 
     return 0
 

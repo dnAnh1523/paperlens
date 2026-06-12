@@ -1,8 +1,8 @@
 # Embeddings
 
 Milestone 13 adds the local embedding abstraction and SQLite storage schema needed before semantic
-retrieval is introduced. It does not call OpenAI, cloud APIs, paid services, Qdrant server, Docker, or
-an LLM.
+retrieval is introduced. It does not call model APIs, cloud APIs, paid services, vector database
+servers, Docker, or an LLM.
 
 ## Provider Interface
 
@@ -58,8 +58,9 @@ If a document has no chunks, indexing returns `409 Conflict` and asks the user t
 
 ## Current Limitations
 
-- Fake/hash embeddings are not used by search or chat ranking.
+- Fake/hash embeddings are not used by LIKE or FTS5 search or chat ranking.
 - No semantic model is bundled yet.
 - No vector database or ANN index is used yet.
 - No external embedding API is called.
+- No model weights are downloaded.
 - No migration framework is added; local SQLite uses the existing startup `create_all()` path.

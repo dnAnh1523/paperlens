@@ -14,6 +14,7 @@ from app.ingestion.artifacts import (
 from app.models.chunk_embedding import ChunkEmbedding
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
+from app.services.retrieval_service import delete_fts_rows_for_document, index_document_chunks_fts
 
 TARGET_CHARS = 1500
 OVERLAP_CHARS = 200
@@ -132,6 +133,7 @@ def split_text_into_chunks(
 
 
 def delete_chunks_for_document(db: Session, document_id: str) -> None:
+    delete_fts_rows_for_document(db, document_id)
     db.execute(delete(ChunkEmbedding).where(ChunkEmbedding.document_id == document_id))
     db.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document_id))
     db.commit()
@@ -266,6 +268,7 @@ def chunk_document(db: Session, document: Document) -> list[DocumentChunk]:
             for chunk in chunks
         ],
     )
+    index_document_chunks_fts(db, document.id)
     return chunks
 
 

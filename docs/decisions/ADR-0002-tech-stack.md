@@ -1,8 +1,8 @@
-# ADR-0002: Initial technology stack
+# ADR-0002: Initial Technology Stack
 
 ## Status
 
-Accepted
+Accepted, amended by Milestone 14 for zero-budget defaults.
 
 ## Decision
 
@@ -12,9 +12,12 @@ PaperLens starts with:
 - Next.js frontend
 - SQLite metadata store for local development
 - Local folder storage for documents and extracted assets
-- Qdrant Client local mode for vector experiments
+- SQLite LIKE/FTS5 lexical retrieval for local development
+- Deterministic fake/hash embeddings for indexing scaffolding
 - GitHub Actions for CI
 
 ## Notes
 
-The original Docker-first stack was replaced because it caused disk pressure on Windows 11 development machines. Production services can be introduced later behind interfaces.
+The original Docker-first and vector-service-looking stack was replaced because it caused disk pressure
+and budget risk for Windows 11 development machines. Production services can be introduced later behind
+optional interfaces.

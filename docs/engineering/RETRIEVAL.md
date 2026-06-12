@@ -42,10 +42,30 @@ This policy is deterministic and designed for local testing, not final retrieval
 Search is exposed at:
 
 ```http
-GET /search?query=...&limit=10
+GET /search?query=...&limit=10&mode=auto
 ```
 
-Milestone 4 uses a SQLite `LIKE`-based lexical fallback instead of FTS5. This keeps setup reliable across local Windows 11 SQLite builds and avoids extra migration complexity. The search service tokenizes the query, filters chunks containing at least one query term, scores matches by term frequency with a small phrase-match bonus, and returns ranked chunks with document metadata. Milestone 11 adds nullable page metadata to returned chunks when available.
+Milestone 14 supports three local retrieval modes:
+
+- `auto`: use SQLite FTS5 when available, otherwise fall back to LIKE.
+- `like`: force the original SQLite `LIKE`-based lexical search.
+- `fts5`: force SQLite FTS5 and return a clear error if the local SQLite build does not support it.
+
+Status is exposed at:
+
+```http
+GET /search/status?mode=auto
+```
+
+The LIKE fallback tokenizes the query, filters chunks containing at least one query term, scores matches
+by term frequency with a small phrase-match bonus, and returns ranked chunks with document metadata.
+The FTS5 path stores chunk text in a local SQLite virtual table and ranks matches with SQLite `bm25()`
+plus a small lexical count score. Milestone 11 adds nullable page metadata to returned chunks when
+available.
+
+Chunking, re-chunking, and document deletion keep FTS rows aligned when FTS5 is available. Search can
+also backfill the FTS table from existing chunks after a local upgrade. If FTS5 is unavailable, the app
+continues to run with the LIKE fallback.
 
 ## Embedding Index Scaffolding
 
@@ -67,19 +87,19 @@ GET /documents/{document_id}/embeddings/status?dimension=64
 ```
 
 Re-indexing removes existing rows for the same document/provider/model and recreates them from the
-current chunks. Re-running chunking also clears stale embedding rows for that document. Lexical search
-and chat still use the existing `LIKE`-based retrieval service.
+current chunks. Re-running chunking also clears stale embedding rows for that document. Fake/hash
+embeddings are not used by the LIKE or FTS5 retrieval modes yet.
 
 ## Chat evidence
 
-Milestone 5 reuses the same lexical search service for chat. When a user posts a message, the backend
-searches chunks with the message content, stores the retrieved chunk metadata as `message_evidence`,
-and returns a deterministic assistant message. Evidence rows keep `document_id`, `chunk_id`, rank,
-score, and an excerpt snapshot so chat history remains understandable even if chunks are later
-regenerated. Milestone 11 also stores `page_number`, `page_start`, and `page_end` on evidence rows when
-the retrieved chunk has page metadata. Milestone 12 expands the answer-time snapshot to include full
-chunk text, document title/filename, chunk index, character offsets, page offsets, and estimated token
-count.
+Milestone 5 reuses the same local lexical search service for chat. When a user posts a message, the
+backend searches chunks with the default `auto` mode, stores the retrieved chunk metadata as
+`message_evidence`, and returns a deterministic assistant message. Evidence rows keep `document_id`,
+`chunk_id`, rank, score, and an excerpt snapshot so chat history remains understandable even if chunks
+are later regenerated. Milestone 11 also stores `page_number`, `page_start`, and `page_end` on evidence
+rows when the retrieved chunk has page metadata. Milestone 12 expands the answer-time snapshot to
+include full chunk text, document title/filename, chunk index, character offsets, page offsets, and
+estimated token count.
 
 ## Source context preview
 
@@ -124,4 +144,4 @@ snapshot fallback when live context is no longer available.
 - Chat responses are deterministic evidence previews, not generated answers.
 - No evidence-type-specific retrieval beyond text chunks.
 - Source preview is chunk-text context only, not a rendered PDF/page viewer.
-- LIKE-based search is acceptable for small local corpora but should be replaced or complemented by FTS5 and embeddings later.
+- FTS5 availability depends on the local SQLite build; LIKE remains the reliable fallback.

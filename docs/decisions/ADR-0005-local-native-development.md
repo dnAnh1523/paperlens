@@ -1,12 +1,13 @@
-# ADR-0005: Use local-native development instead of Docker by default
+# ADR-0005: Use Local-Native Development Instead of Docker by Default
 
 ## Status
 
-Accepted
+Accepted, amended by Milestone 14 for zero-budget defaults.
 
 ## Context
 
-The initial Docker-based scaffold required multiple large images and caused disk pressure on Windows 11 machines where Docker Desktop stores WSL2 data on the C drive by default.
+The initial Docker-based scaffold required multiple large images and caused disk pressure on Windows 11
+machines where Docker Desktop stores WSL2 data on the C drive by default.
 
 ## Decision
 
@@ -16,7 +17,8 @@ PaperLens will use local-native development by default:
 - Next.js runs directly with Node/npm.
 - SQLite stores local metadata.
 - Local folders store documents and extracted assets.
-- Qdrant Client local mode is used for vector search experiments.
+- SQLite LIKE/FTS5 provides local lexical retrieval.
+- Fake/hash embeddings exercise indexing paths without model downloads.
 
 Docker may return later as an optional deployment artifact.
 

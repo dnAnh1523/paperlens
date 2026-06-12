@@ -23,8 +23,9 @@ Scientific and technical papers contain important evidence across text, tables, 
 - Frontend: Next.js
 - Metadata storage: SQLite during local development
 - File storage: local folders during local development
-- Vector store: Qdrant Client local mode during local development
-- Production target later: PostgreSQL + managed vector database + object storage + queue workers
+- Retrieval: SQLite LIKE fallback and SQLite FTS5 when available
+- Embeddings: deterministic fake/hash vectors for pipeline scaffolding only
+- Production target later: optional PostgreSQL + managed services behind interfaces
 
 ## Why Docker was removed from local development
 
@@ -242,10 +243,27 @@ Implemented in feature branch `feature/m13-embedding-abstraction`:
 
 Current limitation: embeddings are pipeline scaffolding only. They are hash-based test vectors, not real semantic embeddings, and they are not used for retrieval ranking yet. There is still no vector database, external embedding API, LLM call, Docker service, or paid API integration.
 
+## Milestone 14 Progress: Zero-Budget FTS5 Retrieval
+
+Implemented in feature branch `feature/m14-zero-budget-fts5-retrieval`:
+
+- Removed unused vector-client dependency and paid-provider default config placeholders from local backend setup.
+- Updated health/frontend/docs surfaces so the default stack is clearly SQLite/local-only.
+- Added retrieval modes: `auto`, `like`, and `fts5`.
+- `auto` uses SQLite FTS5 when the local SQLite build supports it and falls back to LIKE otherwise.
+- Chunking and re-chunking update the local FTS index when FTS5 is available.
+- Document deletion and chunk deletion clear FTS rows to avoid stale retrieval results.
+- Search API and retrieval eval can run in explicit modes for comparison.
+
+Current limitation: FTS5 is lexical, not semantic. If the local SQLite build lacks FTS5, PaperLens keeps running with the LIKE fallback. Fake/hash embeddings still are not used for ranking.
+
 ## Budget Constraint
 
 PaperLens is developed under a zero-budget constraint.
 
-The project must not require paid APIs, paid cloud services, hosted databases, paid model calls, or commercial infrastructure for local development. Any future integration with OpenAI, hosted vector databases, cloud deployment, or paid services must be optional and isolated behind interfaces.
+The project must not require paid APIs, paid cloud services, hosted databases, paid model calls, model
+downloads, Docker services, or commercial infrastructure for local development. Any future integration
+with paid APIs, hosted vector databases, cloud deployment, or paid services must be optional and
+isolated behind interfaces.
 
 Default development mode must work locally on Windows 11 using free tools only.

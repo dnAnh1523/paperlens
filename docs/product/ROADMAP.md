@@ -5,16 +5,16 @@
 - Repo scaffold
 - Docs scaffold
 - CI scaffold
-- Local infra scaffold
+- Zero-budget local infra scaffold
 
-## Milestone 1: Backend and infrastructure
+## Milestone 1: Backend and Infrastructure
 
 - Database models
-- Object storage service
-- Qdrant client
+- Local storage service
+- SQLite retrieval baseline
 - Health/status routes
 
-## Milestone 2: Upload and document library
+## Milestone 2: Upload and Document Library
 
 - Upload API
 - File validation
@@ -24,26 +24,27 @@
 ## Milestone 3: Ingestion
 
 - PDF text extraction
-- Page rendering
+- Page text artifacts
 - Layout-aware metadata
-- Table/figure asset representation
+- Table/figure asset representation later
 
 ## Milestone 4: Retrieval
 
 - Text retrieval baseline
-- Evidence-type-aware retrieval
-- Reranking
+- SQLite FTS5 when available
+- Evidence-type-aware retrieval later
 - Citation assembly
 
 ## Milestone 5: Generation
 
-- Multimodal prompt assembly
-- Citation-constrained answer JSON
+- Deterministic evidence-preview responses first
+- Multimodal prompt assembly later
+- Citation-constrained answer JSON later
 - Source preview UI
 
 ## Milestone 6: Evaluation
 
 - Eval dataset format
-- Baselines
+- Local lexical baselines
 - Automated scoring harness
 - Result reports

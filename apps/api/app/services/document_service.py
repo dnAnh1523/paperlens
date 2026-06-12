@@ -12,6 +12,7 @@ from app.ingestion.artifacts import clear_document_artifacts
 from app.models.document import Document, DocumentStatus
 from app.models.ingestion_job import IngestionJob, IngestionJobStatus
 from app.services.ingestion_service import run_ingestion
+from app.services.retrieval_service import delete_fts_rows_for_document
 
 SUPPORTED_CONTENT_TYPES = {
     "application/pdf",
@@ -108,6 +109,7 @@ def delete_document(db: Session, document: Document) -> None:
     storage_path = Path(document.storage_path)
     document_dir = storage_path.parent
     document_id = document.id
+    delete_fts_rows_for_document(db, document_id)
     db.delete(document)
     db.commit()
     if document_dir.exists() and document_dir.is_dir():

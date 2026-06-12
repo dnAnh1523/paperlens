@@ -78,7 +78,7 @@ chunk text and metadata.
 
 ## Local limitations
 
-- Retrieval is lexical and LIKE-based.
+- Retrieval is lexical and uses `auto` mode: SQLite FTS5 when available, otherwise LIKE fallback.
 - No semantic retrieval, embeddings, reranking, or answer synthesis yet.
 - No PDF page viewer yet.
 - Conversation schema is created with the existing local `create_all()` startup behavior; Alembic migrations are still future work.

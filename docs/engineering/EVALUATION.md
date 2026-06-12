@@ -1,7 +1,9 @@
 # Evaluation
 
-Milestone 9 adds a local retrieval evaluation harness. It is deterministic and does not call an LLM,
-embedding model, vector database, cloud service, Docker service, or paid API.
+Milestone 9 adds a local retrieval evaluation harness. The default harness is deterministic and does
+not call an LLM, embedding model, vector database, cloud service, Docker service, or paid API.
+Future optional evaluation variants may test free-tier or open-source adapters, but core evals must
+remain runnable without credentials or hosted services.
 
 ## Dataset format
 

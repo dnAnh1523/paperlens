@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, amended by Milestone 14 for zero-budget defaults.
+Accepted, amended by Milestone 14 for zero-budget-first defaults.
 
 ## Context
 

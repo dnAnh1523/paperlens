@@ -3,6 +3,8 @@
 ## Product summary
 
 PaperLens helps users ask grounded questions over scientific and technical papers. It focuses on evidence that text-only RAG often misses: figures, tables, charts, equations, and page layout.
+The current M1-M18 implementation is a zero-budget-first local evidence-preview foundation, not a
+completed multimodal QA product.
 
 ## Target users
 
@@ -22,8 +24,9 @@ PaperLens helps users ask grounded questions over scientific and technical paper
 ## In scope
 
 - Scientific and technical PDFs
-- Text, table, figure, chart, equation, and page-image evidence
-- Source-grounded QA
+- Text evidence now; table, figure, chart, equation, and page-image evidence as future optional
+  evidence types
+- Source-grounded evidence previews now; full QA answer synthesis later
 - Evidence previews
 - Evaluation suite
 
@@ -37,7 +40,10 @@ PaperLens helps users ask grounded questions over scientific and technical paper
 
 ## Success criteria
 
-- The system retrieves relevant evidence for text, table, and figure questions.
-- Answers cite source pages/assets.
-- Evaluation can compare text-only vs multimodal variants.
-- The app runs locally with Docker Compose.
+- The default app runs locally on Windows 11 without Docker, paid APIs, cloud accounts, hosted vector
+  databases, large model downloads, or API keys.
+- The system retrieves and previews relevant text evidence with source citations.
+- Users can inspect source chunks and stable evidence snapshots.
+- Evaluation can compare LIKE, FTS5, and AUTO retrieval modes.
+- Future optional adapters for OCR, free-tier LLM providers, open-source tools, deployment, and
+  multimodal evidence stay isolated and disabled by default.

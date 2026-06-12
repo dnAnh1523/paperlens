@@ -23,7 +23,9 @@ Images, CSV files, and other upload-accepted formats do not have text extractors
 PDF extraction is text-layer only. PaperLens reads PDFs page by page with PyMuPDF, normalizes excessive
 whitespace conservatively, writes per-page text artifacts, and preserves a combined `extracted_text.txt`
 for chunking compatibility. Scanned PDFs without an extractable text layer are marked as failed with a
-clear OCR warning. PaperLens does not fake OCR output.
+clear OCR warning. PaperLens does not fake OCR output. Future optional OCR adapters may use
+open-source tools such as Tesseract if they remain optional, documented, and graceful when binaries or
+local resources are unavailable.
 
 ## Job statuses
 
@@ -110,7 +112,9 @@ npm run build
 ## Known limitations
 
 - Ingestion is synchronous and runs inside the API request for now.
-- PDF extraction is text-layer only; scanned PDFs need OCR later and are currently marked failed.
+- PDF extraction is text-layer only; scanned PDFs need an optional OCR adapter later and are currently
+  marked failed.
 - Chunking is character-based and paragraph-aware; it is not semantic chunking.
 - No page rendering, table extraction, figure extraction, equation parsing, embeddings, or vector indexing is implemented yet.
-- No Celery, Redis, Docker, object-storage server, vector database server, or cloud service is required for this milestone.
+- No Celery, Redis, Docker, object-storage server, vector database server, or cloud service is required
+  for this milestone's default workflow.

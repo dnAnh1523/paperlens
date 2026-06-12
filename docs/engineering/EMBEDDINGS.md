@@ -1,8 +1,8 @@
 # Embeddings
 
 Milestone 13 adds the local embedding abstraction and SQLite storage schema needed before semantic
-retrieval is introduced. It does not call model APIs, cloud APIs, paid services, vector database
-servers, Docker, or an LLM.
+retrieval is introduced. The default implementation does not call model APIs, cloud APIs, paid
+services, vector database servers, Docker, or an LLM.
 
 ## Provider Interface
 
@@ -14,7 +14,9 @@ Embedding providers expose:
 - `embed_texts(texts: list[str]) -> list[list[float]]`
 
 The interface lives in `apps/api/app/embeddings/providers.py`. Future real providers should implement
-the same contract and can be selected by service/API wiring later.
+the same contract and can be selected by service/API wiring later. Optional providers may use local
+open-source models or zero-cost/free-tier APIs, but they must be disabled by default and graceful when
+credentials, quota, model files, or local resources are unavailable.
 
 ## Local Fake Provider
 
@@ -61,6 +63,6 @@ If a document has no chunks, indexing returns `409 Conflict` and asks the user t
 - Fake/hash embeddings are not used by LIKE or FTS5 search or chat ranking.
 - No semantic model is bundled yet.
 - No vector database or ANN index is used yet.
-- No external embedding API is called.
-- No model weights are downloaded.
+- No external embedding API is called by the default provider.
+- No model weights are downloaded by the default provider.
 - No migration framework is added; local SQLite uses the existing startup `create_all()` path.

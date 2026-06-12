@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, amended by Milestone 14 for zero-budget local development.
+Accepted, amended by Milestone 14 for zero-budget-first local development.
 
 ## Decision
 

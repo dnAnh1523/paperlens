@@ -1,6 +1,7 @@
 # Retrieval
 
-PaperLens Milestone 4 adds local chunk storage and lexical retrieval without embeddings, vector databases, LLM calls, Docker, or cloud services.
+PaperLens Milestone 4 adds local chunk storage and default lexical retrieval without requiring
+embeddings, vector databases, LLM calls, Docker, or cloud services.
 
 ## Chunking
 
@@ -175,3 +176,5 @@ snapshot fallback when live context is no longer available.
 - No evidence-type-specific retrieval beyond text chunks.
 - Source preview is chunk-text context only, not a rendered PDF/page viewer.
 - FTS5 availability depends on the local SQLite build; LIKE remains the reliable fallback.
+- Future semantic/vector retrieval adapters may use local open-source tools or zero-cost/free-tier
+  providers, but they must be optional and disabled by default.

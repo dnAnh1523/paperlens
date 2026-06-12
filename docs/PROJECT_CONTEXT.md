@@ -310,6 +310,23 @@ Implemented in feature branch `feature/m17-retrieval-benchmark-v1`:
 Current limitation: benchmark v1 is still synthetic and lexical. Non-perfect scores are expected and
 useful, but they are early failure-analysis signals rather than final thesis retrieval-quality claims.
 
+## Milestone 18 Progress: Retrieval Report Generation
+
+Implemented in feature branch `feature/m18-retrieval-report-generation`:
+
+- Extended `scripts/run_retrieval_eval.py` with `--write-markdown` alongside the existing JSON report
+  output path.
+- JSON reports now include run metadata, the dataset path, report kind, structured summaries,
+  per-question results, retrieved evidence, and comparison data for later plotting.
+- Markdown reports include run metadata, a mode metrics table, per-question result table,
+  interpretation notes, and limitations suitable for thesis drafting.
+- Reports are written under ignored `evals/runs/` and remain local-only.
+- The benchmark report command is:
+  `python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes --write-json --write-markdown`.
+
+Current limitation: generated reports reflect the current local SQLite/artifact state and lexical
+retrieval only. They do not include LLM judging, semantic retrieval, embeddings, OCR, or vector search.
+
 ## Budget Constraint
 
 PaperLens is developed under a zero-budget constraint.

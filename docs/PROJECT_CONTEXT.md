@@ -25,12 +25,13 @@ Scientific and technical papers contain important evidence across text, tables, 
 - File storage: local folders during local development
 - Retrieval: SQLite LIKE fallback and SQLite FTS5 when available
 - Embeddings: deterministic fake/hash vectors for pipeline scaffolding only
+- Answer generation: provider interface with deterministic evidence-preview provider as the default
 - Evaluation: local fixture seeding, smoke test, synthetic benchmark v1, and JSON/Markdown reports
 - Optional adapters later: free-tier APIs, open-source OCR, local models, free deployment tiers,
   OpenAI-compatible free-provider proxies, PostgreSQL, object storage, and managed services behind
   interfaces
 
-## Current product state after Milestone 18
+## Current product state after Milestone 20
 
 PaperLens can run a complete local, non-LLM evidence-preview workflow:
 
@@ -38,7 +39,8 @@ PaperLens can run a complete local, non-LLM evidence-preview workflow:
 2. Ingest supported documents into local extracted-text artifacts.
 3. Chunk extracted text with source offsets and page metadata when page artifacts exist.
 4. Search chunks with SQLite LIKE, SQLite FTS5 when available, or AUTO mode.
-5. Create deterministic chat evidence-preview responses without calling an LLM.
+5. Create deterministic chat evidence-preview responses through the default `AnswerProvider`
+   without calling an LLM.
 6. Inspect live source context behind evidence cards.
 7. Fall back to stored evidence snapshots when chunks are regenerated or deleted.
 8. Seed local evaluation fixtures without a running API server.
@@ -68,6 +70,7 @@ Docker image pulls and WSL2 Docker storage consumed too much disk space on the W
 - Page-aware PDF text extraction for text-layer PDFs.
 - Page-aware chunk metadata and local lexical search with LIKE/FTS5/AUTO modes.
 - Deterministic chat evidence-preview API and frontend chat UI.
+- AnswerProvider interface with deterministic local evidence-preview provider as the default.
 - Source context preview and stable evidence snapshot fallback.
 - Fake/hash embedding indexing scaffold that does not affect retrieval ranking.
 - Local retrieval evaluation harness, fixture seeding, benchmark v1, and JSON/Markdown reports.
@@ -81,8 +84,9 @@ Docker image pulls and WSL2 Docker storage consumed too much disk space on the W
 3. Add table/figure/equation extraction experiments behind local, optional components.
 4. Add real local, open-source, or zero-cost/free-tier embeddings only after the zero-budget-first
    architecture is stable.
-5. Add optional LLM answer synthesis only after retrieval, citations, and evaluation are sufficiently
-   grounded, with adapters disabled by default and graceful failure when credentials/quota are missing.
+5. Add optional LLM answer synthesis providers only after retrieval, citations, and evaluation are
+   sufficiently grounded, with adapters disabled by default and graceful failure when credentials or
+   quota are missing.
 6. Expand thesis result analysis using committed benchmark reports and clearly stated limitations.
 
 ## Known risks
@@ -359,6 +363,38 @@ Implemented in feature branch `feature/m18-retrieval-report-generation`:
 
 Current limitation: generated reports reflect the current local SQLite/artifact state and lexical
 retrieval only. They do not include LLM judging, semantic retrieval, embeddings, OCR, or vector search.
+
+## Milestone 19 Progress: Research Docs Cleanup
+
+Implemented in feature branch `feature/m19-research-docs-cleanup`:
+
+- Updated project context, thesis notes, product roadmap, and architecture decisions after M1-M18.
+- Added thesis experiment log and thesis outline documents.
+- Added ADRs for zero-budget-first local default, SQLite FTS5 baseline retrieval, fake/hash
+  embeddings, and stable evidence snapshots.
+- Clarified that PaperLens is zero-budget-first, not local-only forever.
+- Documented optional future free-tier/open-source adapters as disabled-by-default interfaces.
+
+Current limitation: this milestone changed documentation only. It did not add OCR, LLM synthesis,
+semantic retrieval, deployment, or multimodal vision.
+
+## Milestone 20 Progress: Answer Provider Interface
+
+Implemented in feature branch `feature/m20-answer-provider-interface`:
+
+- Added an `AnswerProvider` protocol with `AnswerRequest`, `AnswerResult`, and `EvidenceInput`
+  structures.
+- Added `DeterministicEvidenceAnswerProvider` as the default local provider.
+- Refactored chat message creation so assistant content is generated through the provider interface.
+- Kept existing deterministic evidence-preview content, no-evidence behavior, and evidence snapshot
+  storage backward compatible.
+- Added a minimal `answer_provider` config setting that defaults to `deterministic-evidence`.
+- Unsupported provider names fail clearly at provider selection time.
+
+Current limitation: M20 does not add LLM synthesis or any real provider integration. The only
+implemented answer provider is deterministic and local. Future optional providers may use free-tier
+APIs or local/open-source tools only if they stay isolated, disabled by default, documented, and
+graceful when unavailable.
 
 ## Zero-Budget-First Policy
 

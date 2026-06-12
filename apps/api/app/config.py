@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     database_url: str = "sqlite:///./data/sqlite/paperlens.db"
     local_storage_root: str = "./data/storage"
+    answer_provider: str = "deterministic-evidence"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

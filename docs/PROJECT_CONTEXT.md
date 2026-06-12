@@ -25,14 +25,14 @@ Scientific and technical papers contain important evidence across text, tables, 
 - File storage: local folders during local development
 - Retrieval: SQLite LIKE fallback and SQLite FTS5 when available
 - Embeddings: deterministic fake/hash vectors for pipeline scaffolding only
-- Answer generation: provider interface with deterministic evidence-preview provider as the default
-  plus provider status diagnostics
+- Answer generation: provider interface with deterministic evidence-preview provider as the default,
+  provider status diagnostics, and an optional OpenAI-compatible adapter disabled by default
 - Evaluation: local fixture seeding, smoke test, synthetic benchmark v1, and JSON/Markdown reports
 - Optional adapters later: free-tier APIs, open-source OCR, local models, free deployment tiers,
   OpenAI-compatible free-provider proxies, PostgreSQL, object storage, and managed services behind
   interfaces
 
-## Current product state after Milestone 21
+## Current product state after Milestone 22
 
 PaperLens can run a complete local, non-LLM evidence-preview workflow:
 
@@ -48,10 +48,13 @@ PaperLens can run a complete local, non-LLM evidence-preview workflow:
 9. Compare LIKE, FTS5, and AUTO on smoke and benchmark datasets.
 10. Generate local JSON and Markdown retrieval reports under ignored `evals/runs/`.
 11. View the configured answer provider status in the backend API and web chat workspace.
+12. Optionally configure a generic OpenAI-compatible answer provider for evidence-grounded answer
+    drafts without changing the default deterministic provider.
 
-The system is still not a full multimodal RAG system. It has no LLM answer synthesis, no real
-embeddings, no vector database, no OCR, no rendered PDF/page viewer, no table/figure/equation
-extraction, and no multimodal vision model integration.
+The default system is still not a full multimodal RAG system. It has no required LLM answer synthesis,
+no real embeddings, no vector database, no OCR, no rendered PDF/page viewer, no table/figure/equation
+extraction, and no multimodal vision model integration. The optional OpenAI-compatible adapter is
+generic, disabled by default, and not tied to a paid provider.
 
 ## Why Docker was removed from local development
 
@@ -74,6 +77,8 @@ Docker image pulls and WSL2 Docker storage consumed too much disk space on the W
 - Deterministic chat evidence-preview API and frontend chat UI.
 - AnswerProvider interface with deterministic local evidence-preview provider as the default.
 - Answer provider status API and frontend diagnostic panel.
+- Optional OpenAI-compatible answer provider adapter for future free-tier, local server, or proxy
+  experiments.
 - Source context preview and stable evidence snapshot fallback.
 - Fake/hash embedding indexing scaffold that does not affect retrieval ranking.
 - Local retrieval evaluation harness, fixture seeding, benchmark v1, and JSON/Markdown reports.
@@ -87,9 +92,8 @@ Docker image pulls and WSL2 Docker storage consumed too much disk space on the W
 3. Add table/figure/equation extraction experiments behind local, optional components.
 4. Add real local, open-source, or zero-cost/free-tier embeddings only after the zero-budget-first
    architecture is stable.
-5. Add optional LLM answer synthesis providers only after retrieval, citations, and evaluation are
-   sufficiently grounded, with adapters disabled by default and graceful failure when credentials or
-   quota are missing.
+5. Harden optional OpenAI-compatible provider evaluation only after retrieval, citations, and
+   benchmark reporting are sufficiently grounded.
 6. Expand thesis result analysis using committed benchmark reports and clearly stated limitations.
 
 ## Known risks
@@ -415,6 +419,26 @@ Implemented in feature branch `feature/m21-provider-diagnostics`:
 
 Current limitation: M21 is diagnostic only. It does not add LLM synthesis, streaming, optional
 free-tier providers, local model providers, network calls, API keys, or model downloads.
+
+## Milestone 22 Progress: OpenAI-Compatible Answer Provider
+
+Implemented in feature branch `feature/m22-openai-compatible-provider`:
+
+- Added `OpenAICompatibleAnswerProvider` behind the existing `AnswerProvider` interface.
+- Added opt-in config fields: `answer_provider`, `llm_base_url`, `llm_api_key`, `llm_model`,
+  `llm_timeout_seconds`, `llm_max_tokens`, `llm_temperature`, and `llm_requires_api_key`.
+- The deterministic provider remains the default and requires no network, key, model download, or
+  paid service.
+- The OpenAI-compatible adapter sends the user question and retrieved evidence snippets to a
+  `/chat/completions` endpoint and instructs the provider to answer only from evidence.
+- Provider failures, missing config, rate limits, timeouts, network errors, and invalid responses fall
+  back to deterministic evidence-preview text while preserving PaperLens evidence rows.
+- Provider diagnostics report model name, safe base URL host, network requirement, API-key
+  requirement, and availability without exposing secrets.
+
+Current limitation: M22 does not make any provider official or required. Groq, NVIDIA NIM, other
+OpenAI-compatible free-tier APIs, local OpenAI-compatible servers, and custom proxy/router endpoints
+are configuration examples only. No real provider call happens in tests.
 
 ## Zero-Budget-First Policy
 

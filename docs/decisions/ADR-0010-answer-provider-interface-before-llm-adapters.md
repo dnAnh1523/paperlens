@@ -45,6 +45,9 @@ Milestone 21 adds provider diagnostics before any real LLM provider is implement
 surface reports provider name, provider type, display name, default status, availability, whether API
 keys/network/model downloads are required, streaming support, and a status message.
 
+Milestone 22 adds the first optional adapter behind this boundary. See
+`ADR-0011-openai-compatible-answer-provider.md`.
+
 ## Consequences
 
 Positive:

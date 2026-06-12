@@ -220,6 +220,8 @@ Response:
   "provider_name": "deterministic-evidence",
   "provider_type": "deterministic",
   "display_name": "Deterministic evidence preview",
+  "model_name": "evidence-preview-template-v1",
+  "base_url_host": null,
   "is_default": true,
   "is_available": true,
   "requires_api_key": false,
@@ -230,8 +232,22 @@ Response:
 }
 ```
 
+When `answer_provider=openai-compatible`, the same endpoint reports:
+
+- `provider_type: "openai-compatible"`
+- configured `model_name`
+- safe `base_url_host`
+- `requires_network: true`
+- `requires_api_key` based on `llm_requires_api_key`
+- `is_available: false` when required config is missing
+
 Unsupported provider config returns `provider_type: "unknown"` and `is_available: false` with a clear
-status message. M21 does not add LLM synthesis or real provider integrations.
+status message. Provider status never returns API keys or full URLs with credentials.
+
+The OpenAI-compatible provider is disabled by default and is configured through local settings such as
+`answer_provider`, `llm_base_url`, `llm_model`, `llm_api_key`, `llm_requires_api_key`,
+`llm_timeout_seconds`, `llm_max_tokens`, and `llm_temperature`. It uses a `/chat/completions`
+request shape and keeps PaperLens evidence rows as authoritative citations.
 
 ## Conversations
 

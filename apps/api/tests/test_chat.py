@@ -2,11 +2,14 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+import httpx
 
 from app.db.session import SessionLocal
 from app.generation.answer_service import (
     AnswerRequest,
     AnswerResult,
+    OpenAICompatibleAnswerProvider,
+    OpenAICompatibleProviderConfig,
     UnsupportedAnswerProviderError,
 )
 from app.main import app
@@ -176,6 +179,46 @@ def test_post_user_message_uses_answer_provider_interface() -> None:
     assert provider.request.evidence
     assert provider.request.evidence[0].document_id == document["id"]
     assert turn.assistant_message.content.startswith("Provider response with")
+    assert turn.assistant_message.evidence
+    assert turn.assistant_message.evidence[0].document_id == document["id"]
+
+
+def test_post_user_message_can_use_mocked_openai_compatible_provider() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            status_code=200,
+            json={"choices": [{"message": {"content": "The answer is grounded in Evidence 1."}}]},
+        )
+
+    client = TestClient(app)
+    term = _term("chatopenaiadapter")
+    document = _create_chunked_document(client, term)
+    conversation = client.post("/conversations").json()
+    config = OpenAICompatibleProviderConfig(
+        base_url="https://provider.example.test/v1",
+        api_key=None,
+        model="free-model",
+        timeout_seconds=5,
+        max_tokens=200,
+        temperature=0,
+    )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        provider = OpenAICompatibleAnswerProvider(config=config, client=http_client)
+        with SessionLocal() as db:
+            stored_conversation = db.get(Conversation, conversation["conversation_id"])
+            assert stored_conversation is not None
+
+            turn = post_user_message(
+                db,
+                conversation=stored_conversation,
+                content=term,
+                evidence_limit=3,
+                answer_provider=provider,
+            )
+
+    assert "Evidence-grounded answer draft" in turn.assistant_message.content
+    assert "Evidence 1" in turn.assistant_message.content
     assert turn.assistant_message.evidence
     assert turn.assistant_message.evidence[0].document_id == document["id"]
 

@@ -151,8 +151,10 @@ export type ChatTurn = {
 
 export type AnswerProviderStatus = {
   provider_name: string;
-  provider_type: "deterministic" | "free-tier-api" | "local-model" | "unknown";
+  provider_type: "deterministic" | "free-tier-api" | "local-model" | "openai-compatible" | "unknown";
   display_name: string;
+  model_name: string | null;
+  base_url_host: string | null;
   is_default: boolean;
   is_available: boolean;
   requires_api_key: boolean;

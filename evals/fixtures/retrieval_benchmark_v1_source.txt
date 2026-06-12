@@ -1,0 +1,27 @@
+Title: CryoSpan Retrieval Robustness Study for Local Scientific QA
+
+Abstract. This synthetic technical report evaluates how a zero-budget PaperLens prototype retrieves evidence from scientific and engineering documents. The study uses a local SQLite store, local extracted text artifacts, and lexical retrieval only. It is not a claim about production quality; it is a controlled benchmark fixture for checking whether natural-language questions can find the intended evidence in the presence of plausible distractors. The report contains final methods, final results, table-like evidence, figure-caption-like evidence, limitations, and stale pilot notes that should not be treated as the final results.
+
+Methods. The final CryoSpan benchmark used 64 text-layer scientific papers and excluded 11 scanned PDFs because they had no usable text layer. OCR was not implemented for this benchmark version. Source text was ingested locally, normalized for whitespace, and chunked with a target size of 1500 characters and a 200 character overlap. The normalization pass preserved compact scientific measurement strings such as 10^-3 A cm^-2 and 0.25 mV s^-1. The methods section also preserved hyphenated materials labels such as Li-S cathode and Ni-rich layered oxide so that retrieval could match technical phrases without a model download.
+
+Distractor note from an early pilot. The pilot run used 900 character chunks and a 100 character overlap. That pilot setting was abandoned before the final benchmark because it split table rows across chunks too often. The same pilot note also reported a LIKE hit@5 of 0.62, but that was not the final reported score. These pilot values are included as distractors because they contain words such as chunk, overlap, LIKE, hit@5, and retrieval while referring to a different experiment.
+
+Final retrieval results. In the final benchmark, FTS5 hit@5 was 0.71 with an MRR of 0.54. LIKE hit@5 was 0.58 with an MRR of 0.42. AUTO used FTS5 on the local SQLite build used for the run, so AUTO matched the FTS5 hit@5 and MRR values. LIKE produced 5 no-result queries, while FTS5 produced 3 no-result queries. The authors wrote that the final result should be read as a local lexical retrieval baseline, not as evidence that embeddings or LLMs are unnecessary.
+
+Table 1. Evidence type summary for the final CryoSpan benchmark.
+method evidence: 8 of 10 cases found the expected method chunk.
+result evidence: 7 of 10 cases found the expected result chunk.
+table evidence: 5 of 8 cases found the expected table row.
+figure-caption cases: 4 of 6 cases found the expected caption context.
+limitation evidence: 6 of 6 cases found the expected limitation statement.
+The lowest recall category was figure-caption cases, not method evidence. The table rows are plain text here, so column structure is deliberately weaker than in a rendered table.
+
+Figure 2 caption. Query length sensitivity for local lexical retrieval. Short queries with rare technical words were usually easier than long questions made mostly of common words. This figure caption is a distractor for questions about Figure 3 because it mentions query sensitivity and retrieval errors but does not describe the source of false positives.
+
+Figure 3 caption. Error analysis for distractor-sensitive queries. Nine of 23 false positives came from boilerplate safety disclaimers that repeated words such as risk, control, evaluation, and benchmark. The LIKE mode was especially sensitive to those repeated generic passages because its fallback score counted lexical term frequency. FTS5 reduced some of those errors when rare terms were present, but it still remained lexical rather than semantic.
+
+Stable evidence snapshot definition. A stable evidence snapshot stores the full chunk text, source filename, document title, chunk index, character offsets, page number when available, estimated token count, and a short excerpt. The snapshot exists so an old assistant message remains inspectable after chunks are regenerated. It is not a replacement for live source context; it is a fallback that preserves what the assistant saw at answer time.
+
+Limitations. This benchmark v1 does not evaluate scanned PDFs because OCR was not implemented. It does not render figures, inspect page images, recover equations, or use embeddings. Table-heavy questions remain fragile because table structure was flattened into text rows and column headers can be separated from values. The benchmark is intentionally small and local, so non-perfect scores are useful signals about retrieval failure modes rather than reasons to tune toward the fixture.
+
+Additional distractor paragraph. A separate materials-screening memo claimed that FTS5 hit@5 reached 0.69 on a battery-only subset and that LIKE produced 4 no-result queries. That memo used a different corpus and a different relevance definition. It is not part of the final CryoSpan benchmark results, but it repeats retrieval, table, figure, limitation, hit@5, and no-result wording to make the benchmark less trivial.

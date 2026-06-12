@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from app.evaluation.eval_runner import (
     EvalCase,
     RetrievedEvidence,
@@ -43,6 +45,8 @@ def test_load_dataset_supports_expected_terms_and_answer_terms(tmp_path) -> None
                         "question": "What stores metadata?",
                         "expected_terms": ["SQLite"],
                         "expected_document_filename": "sample_retrieval_source.txt",
+                        "difficulty": "easy",
+                        "evidence_type": "method",
                     },
                     {
                         "id": "preview",
@@ -61,8 +65,55 @@ def test_load_dataset_supports_expected_terms_and_answer_terms(tmp_path) -> None
     assert dataset.name == "unit_eval"
     assert dataset.default_k == 3
     assert dataset.cases[0].expected_terms == ["SQLite"]
+    assert dataset.cases[0].difficulty == "easy"
+    assert dataset.cases[0].evidence_type == "method"
     assert dataset.cases[1].expected_answer_terms == ["selected retrieved chunk"]
     assert dataset.cases[1].expected_chunk_text_contains == ["selected retrieved chunk"]
+
+
+def test_load_dataset_rejects_unknown_difficulty_or_evidence_type(tmp_path) -> None:
+    dataset_path = tmp_path / "dataset.json"
+    dataset_path.write_text(
+        json.dumps(
+            {
+                "name": "unit_eval",
+                "default_k": 3,
+                "cases": [
+                    {
+                        "id": "bad",
+                        "question": "What stores metadata?",
+                        "expected_terms": ["SQLite"],
+                        "difficulty": "trivial",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="difficulty must be one of"):
+        load_dataset(dataset_path)
+
+    dataset_path.write_text(
+        json.dumps(
+            {
+                "name": "unit_eval",
+                "default_k": 3,
+                "cases": [
+                    {
+                        "id": "bad",
+                        "question": "What stores metadata?",
+                        "expected_terms": ["SQLite"],
+                        "evidence_type": "appendix",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="evidence_type must be one of"):
+        load_dataset(dataset_path)
 
 
 def test_evidence_matching_requires_filename_and_expected_terms() -> None:

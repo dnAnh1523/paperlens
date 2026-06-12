@@ -43,6 +43,14 @@ def _resolve_fixture_path(repo_root: Path, fixture: str) -> Path:
     return repo_root / fixture_path
 
 
+def _suggest_dataset_path(fixture_path: Path) -> str:
+    suggested_by_fixture = {
+        "sample_retrieval_source.txt": "evals/datasets/sample_retrieval_smoke.json",
+        "retrieval_benchmark_v1_source.txt": "evals/datasets/retrieval_benchmark_v1.json",
+    }
+    return suggested_by_fixture.get(fixture_path.name, "evals/datasets/sample_retrieval_smoke.json")
+
+
 def main() -> int:
     repo_root = _configure_api_imports()
 
@@ -69,9 +77,10 @@ def main() -> int:
     print(f"Ingestion status: {result.ingestion_status}")
     print(f"Chunk count: {result.chunk_count}")
     print("")
+    dataset_path = _suggest_dataset_path(fixture_path)
     print(
         "Next: python scripts/run_retrieval_eval.py --dataset "
-        "evals/datasets/sample_retrieval_smoke.json --compare-modes"
+        f"{dataset_path} --compare-modes"
     )
     return 0
 

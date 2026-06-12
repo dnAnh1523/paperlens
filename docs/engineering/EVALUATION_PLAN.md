@@ -11,6 +11,14 @@ Implemented baseline:
 - CLI: `python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json`
 - Metrics: `hit@k`, mean reciprocal rank, and no-result query count
 
+Milestone 17 benchmark v1:
+
+- Benchmark dataset: `evals/datasets/retrieval_benchmark_v1.json`
+- Benchmark fixture: `evals/fixtures/retrieval_benchmark_v1_source.txt`
+- Seed command: `python scripts/seed_eval_fixture.py --fixture evals/fixtures/retrieval_benchmark_v1_source.txt --reset`
+- Compare command: `python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes`
+- Scope: natural-language questions over methods, results, table-like evidence, figure-caption-like evidence, limitations, and stable evidence definitions
+
 See `docs/engineering/EVALUATION.md` for the current runnable workflow.
 
 Future evaluation work:

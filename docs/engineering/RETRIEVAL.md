@@ -83,6 +83,20 @@ committed sample fixture against local SQLite/storage state without requiring th
 The committed sample uses explicit anchor terms and should be read as a smoke test for retrieval
 plumbing, not as a benchmark showing one retrieval mode is better than another.
 
+Milestone 17 adds a harder natural-language benchmark:
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/retrieval_benchmark_v1_source.txt --reset
+```
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes
+```
+
+The benchmark includes methods, results, table-like rows, figure-caption-like text, limitations, and
+distractor paragraphs. It is designed to expose retrieval failures; non-perfect LIKE/FTS5/AUTO scores
+are expected and useful.
+
 ## Embedding Index Scaffolding
 
 Milestone 13 adds embedding provider and storage scaffolding without changing retrieval ranking. The

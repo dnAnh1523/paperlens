@@ -2,9 +2,12 @@
 
 PaperLens is an applied CS thesis + production-style software project for evidence-type-aware multimodal RAG over scientific and technical papers.
 
-This scaffold uses a **zero-budget, local-native Windows development setup** instead of Docker. Local
-development does not require paid APIs, hosted vector databases, cloud services, model downloads, or
-API keys.
+This scaffold uses a **zero-budget-first, local-native Windows development setup** instead of Docker
+by default. Core local development and tests do not require paid APIs, hosted vector databases, cloud
+accounts, model downloads, or API keys. Future optional adapters may use zero-cost/free-tier services,
+open-source local tools, or free inference providers when they are isolated behind interfaces,
+disabled by default, documented clearly, and fail gracefully when credentials, quota, binaries, or
+local resources are unavailable.
 
 ## Local development on Windows 11
 
@@ -140,15 +143,20 @@ Local development uses:
 - SQLite LIKE/FTS5 lexical retrieval
 - deterministic fake/hash embeddings for pipeline scaffolding only
 
-Optional production work can later introduce managed services behind interfaces, but they are not part
-of the default zero-budget development setup:
+Optional adapters can later introduce managed services, free deployment tiers, open-source OCR, local
+models, or free-provider API integrations behind interfaces, but they are not part of the default
+zero-budget development setup:
 
 - PostgreSQL
 - object storage
-- a managed vector database
+- a managed or local vector database
 - Redis worker queues
+- free-tier LLM or embedding providers
+- open-source OCR such as Tesseract
+- free cloud deployment tiers
 
 ## Current status
 
-PaperLens intentionally avoids Docker, paid APIs, hosted services, and model downloads in local
-development to stay usable on zero budget.
+PaperLens intentionally avoids mandatory Docker, paid APIs, hosted services, and model downloads in
+local development to stay usable on zero budget. Optional future integrations must not become
+requirements for the core evidence pipeline.

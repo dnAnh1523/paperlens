@@ -10,7 +10,10 @@ Scientific papers contain important information in text, figures, tables, equati
 
 ## Problem statement
 
-This project studies and implements an evidence-type-aware multimodal RAG system that can retrieve and reason over heterogeneous evidence in scientific and technical papers.
+This project studies and implements the foundations for an evidence-type-aware multimodal RAG system
+that can eventually retrieve and reason over heterogeneous evidence in scientific and technical papers.
+The current M1-M18 implementation is a local evidence-grounded retrieval and evidence-preview system,
+not a completed multimodal RAG system.
 
 ## Research questions
 
@@ -21,7 +24,14 @@ This project studies and implements an evidence-type-aware multimodal RAG system
 
 ## Expected contribution
 
-- A working end-to-end system for multimodal paper QA.
-- A modular evidence-type-aware retrieval pipeline.
-- An evaluation framework comparing text-only and multimodal variants.
+- A working local-native foundation for scientific document ingestion, chunking, retrieval, source
+  inspection, and deterministic evidence-preview chat.
+- A modular retrieval pipeline that can later support evidence-type-aware and multimodal variants.
+- An evaluation framework comparing local lexical retrieval modes before adding embeddings, OCR,
+  table/figure extraction, or LLM answer synthesis.
 - A documented engineering artifact suitable for reproducible applied CS work.
+
+## Current scope boundary
+
+M1-M18 do not include OCR, table extraction, figure extraction, equation parsing, real embeddings,
+vector retrieval, multimodal vision, or LLM answer synthesis. Those capabilities are future work.

@@ -14,7 +14,7 @@ Scientific and technical papers contain important evidence across text, tables, 
 - Editor: VS Code
 - Shell: PowerShell
 - Command convention: every terminal command must be written as one line
-- Development mode: local-native, no Docker
+- Development mode: zero-budget-first local-native default, no Docker requirement
 - Preferred project drive: non-C drive, for example `F:\paperlens`
 
 ## Current local stack
@@ -25,7 +25,29 @@ Scientific and technical papers contain important evidence across text, tables, 
 - File storage: local folders during local development
 - Retrieval: SQLite LIKE fallback and SQLite FTS5 when available
 - Embeddings: deterministic fake/hash vectors for pipeline scaffolding only
-- Production target later: optional PostgreSQL + managed services behind interfaces
+- Evaluation: local fixture seeding, smoke test, synthetic benchmark v1, and JSON/Markdown reports
+- Optional adapters later: free-tier APIs, open-source OCR, local models, free deployment tiers,
+  OpenAI-compatible free-provider proxies, PostgreSQL, object storage, and managed services behind
+  interfaces
+
+## Current product state after Milestone 18
+
+PaperLens can run a complete local, non-LLM evidence-preview workflow:
+
+1. Upload local `.txt`, `.md`, or text-layer `.pdf` documents.
+2. Ingest supported documents into local extracted-text artifacts.
+3. Chunk extracted text with source offsets and page metadata when page artifacts exist.
+4. Search chunks with SQLite LIKE, SQLite FTS5 when available, or AUTO mode.
+5. Create deterministic chat evidence-preview responses without calling an LLM.
+6. Inspect live source context behind evidence cards.
+7. Fall back to stored evidence snapshots when chunks are regenerated or deleted.
+8. Seed local evaluation fixtures without a running API server.
+9. Compare LIKE, FTS5, and AUTO on smoke and benchmark datasets.
+10. Generate local JSON and Markdown retrieval reports under ignored `evals/runs/`.
+
+The system is still not a full multimodal RAG system. It has no LLM answer synthesis, no real
+embeddings, no vector database, no OCR, no rendered PDF/page viewer, no table/figure/equation
+extraction, and no multimodal vision model integration.
 
 ## Why Docker was removed from local development
 
@@ -40,30 +62,38 @@ Docker image pulls and WSL2 Docker storage consumed too much disk space on the W
 
 ## Implemented so far
 
-- Repository scaffold
-- Thesis/product/engineering documentation skeleton
-- FastAPI health endpoint
-- Next.js landing page
-- GitHub issue templates
-- GitHub Actions for API, web, security, and docs
-- Local-native configuration replacing Docker-first development
+- Local-native FastAPI and Next.js scaffold.
+- SQLite metadata and local document/artifact storage.
+- Document upload, listing, deletion, ingestion, chunking, and retrieval APIs.
+- Page-aware PDF text extraction for text-layer PDFs.
+- Page-aware chunk metadata and local lexical search with LIKE/FTS5/AUTO modes.
+- Deterministic chat evidence-preview API and frontend chat UI.
+- Source context preview and stable evidence snapshot fallback.
+- Fake/hash embedding indexing scaffold that does not affect retrieval ranking.
+- Local retrieval evaluation harness, fixture seeding, benchmark v1, and JSON/Markdown reports.
+- GitHub Actions for API, web, security, and docs.
+- Documentation record for thesis, product, engineering, and architecture decisions.
 
 ## Next tasks
 
-1. Verify backend starts locally on Windows 11.
-2. Verify frontend starts locally on Windows 11.
-3. Create initial SQLite schema for documents, pages, assets, chunks, conversations, and citations.
-4. Implement document upload endpoint.
-5. Implement local file storage service.
-6. Implement PDF page rendering and metadata extraction.
-7. Design evaluation dataset format.
+1. Improve evaluation datasets with more documents, distractors, and evidence-type coverage.
+2. Add OCR strategy research before implementing scanned-PDF support.
+3. Add table/figure/equation extraction experiments behind local, optional components.
+4. Add real local, open-source, or zero-cost/free-tier embeddings only after the zero-budget-first
+   architecture is stable.
+5. Add optional LLM answer synthesis only after retrieval, citations, and evaluation are sufficiently
+   grounded, with adapters disabled by default and graceful failure when credentials/quota are missing.
+6. Expand thesis result analysis using committed benchmark reports and clearly stated limitations.
 
 ## Known risks
 
 - Windows path differences can break scripts if not kept simple.
 - Large PDF/image processing can still consume disk space.
-- OCR and table extraction dependencies may be heavy; introduce them carefully.
-- Multimodal API cost must be controlled with caching and small test documents.
+- OCR and table extraction dependencies may be heavy; introduce open-source options carefully.
+- Optional free-tier or zero-cost multimodal/LLM adapters must be quota-aware, disabled by default,
+  and never required for the core evidence pipeline.
+- Synthetic benchmark results can be overread if docs do not clearly separate smoke tests, local
+  lexical benchmarks, and final thesis claims.
 
 ## Milestone 1 Progress: Document Metadata and Upload Flow
 
@@ -137,7 +167,8 @@ Implemented in feature branch `feature/m5-chat-evidence-api`:
 - Backend conversation endpoints for create, list, read, delete, post message, and read history.
 - Deterministic assistant response template grounded in retrieved local chunks.
 - Evidence snapshots linked to assistant messages with document/chunk references, rank, score, and excerpt.
-- No external LLM, embedding model, vector database, queue, Docker service, or paid API call.
+- No external LLM, embedding model, vector database, queue, Docker service, or paid API call is used
+  by the current implementation.
 - Tests for conversation creation/listing, chat turns, evidence storage, no-evidence responses, message history, and cascade delete.
 
 Current limitation: assistant responses are retrieval previews only. They do not synthesize full natural-language answers or perform semantic retrieval.
@@ -163,7 +194,8 @@ Implemented in feature branch `feature/m7-e2e-local-workflow`:
 - Browser actions for ingestion retry, chunking/rechunking, and preparing a document.
 - Prepare document runs existing ingestion and chunking endpoints in sequence.
 - Chat empty and no-evidence states guide users to prepare documents before asking questions.
-- No new backend service, Docker dependency, vector database, embedding model, LLM call, or paid API integration.
+- No new backend service, Docker dependency, vector database, embedding model, LLM call, or paid API
+  integration is required by the current implementation.
 
 Current limitation: preparation is still synchronous and best suited to small local `.txt`, `.md`, and text-layer `.pdf` files.
 
@@ -175,7 +207,8 @@ Implemented in feature branch `feature/m8-source-evidence-preview`:
 - Context responses include document metadata, chunk indexes, source offsets, estimated token counts, and full chunk text.
 - Chat evidence cards expand in the browser and lazy-load source context on demand.
 - Evidence cards continue to show stored excerpt snapshots even if live source context cannot be loaded later.
-- No PDF page rendering, vector database, embedding model, LLM call, Docker service, or paid API integration.
+- No PDF page rendering, vector database, embedding model, LLM call, Docker service, or paid API
+  integration is required by the current implementation.
 
 Current limitation: source preview shows extracted text chunks only. It does not yet render original PDF pages or highlight positions in the source file.
 
@@ -248,7 +281,7 @@ Current limitation: embeddings are pipeline scaffolding only. They are hash-base
 Implemented in feature branch `feature/m14-zero-budget-fts5-retrieval`:
 
 - Removed unused vector-client dependency and paid-provider default config placeholders from local backend setup.
-- Updated health/frontend/docs surfaces so the default stack is clearly SQLite/local-only.
+- Updated health/frontend/docs surfaces so the default stack is clearly SQLite/local by default.
 - Added retrieval modes: `auto`, `like`, and `fts5`.
 - `auto` uses SQLite FTS5 when the local SQLite build supports it and falls back to LIKE otherwise.
 - Chunking and re-chunking update the local FTS index when FTS5 is available.
@@ -320,20 +353,23 @@ Implemented in feature branch `feature/m18-retrieval-report-generation`:
   per-question results, retrieved evidence, and comparison data for later plotting.
 - Markdown reports include run metadata, a mode metrics table, per-question result table,
   interpretation notes, and limitations suitable for thesis drafting.
-- Reports are written under ignored `evals/runs/` and remain local-only.
+- Reports are generated locally and written under ignored `evals/runs/`.
 - The benchmark report command is:
   `python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes --write-json --write-markdown`.
 
 Current limitation: generated reports reflect the current local SQLite/artifact state and lexical
 retrieval only. They do not include LLM judging, semantic retrieval, embeddings, OCR, or vector search.
 
-## Budget Constraint
+## Zero-Budget-First Policy
 
-PaperLens is developed under a zero-budget constraint.
+PaperLens is developed under a zero-budget-first constraint.
 
-The project must not require paid APIs, paid cloud services, hosted databases, paid model calls, model
-downloads, Docker services, or commercial infrastructure for local development. Any future integration
-with paid APIs, hosted vector databases, cloud deployment, or paid services must be optional and
-isolated behind interfaces.
+The default workflow, core tests, and local development must not require paid API keys, cloud
+accounts, hosted vector databases, Docker, large model downloads, or paid infrastructure.
 
-Default development mode must work locally on Windows 11 using free tools only.
+Optional adapters may use free-tier APIs, open-source OCR such as Tesseract, local open-source tools,
+free inference providers, OpenAI-compatible free-provider proxies, or free cloud deployment tiers.
+Those adapters must be isolated behind interfaces, disabled by default, documented clearly, and fail
+gracefully when credentials, quota, binaries, or local resources are unavailable.
+
+Paid services must never be mandatory for the core evidence pipeline.

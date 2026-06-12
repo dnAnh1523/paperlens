@@ -1,6 +1,9 @@
 # Chat
 
-Milestone 5 adds the backend chat foundation for retrieval-grounded evidence previews. It does not call an LLM, embedding model, vector database, cloud service, or paid API.
+Milestone 5 adds the backend chat foundation for retrieval-grounded evidence previews. The current
+default workflow does not call an LLM, embedding model, vector database, cloud service, or paid API.
+Future optional LLM adapters may be added behind interfaces, but deterministic evidence previews must
+remain available without credentials or paid services.
 
 ## Flow
 

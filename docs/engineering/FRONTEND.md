@@ -69,9 +69,10 @@ The chat workspace shows a small answer provider status panel. It calls:
 GET /answer-provider/status
 ```
 
-The panel displays the active provider name, availability, provider type, and whether API keys,
-network access, model downloads, or streaming are required. This is diagnostic only. It does not add
-LLM synthesis or change chat behavior.
+The panel displays the active provider name, availability, provider type, configured model, safe base
+URL host, and whether API keys, network access, model downloads, or streaming are required. This is
+diagnostic only. It does not add LLM synthesis or change chat behavior. When the optional
+OpenAI-compatible provider is selected, the UI never displays API keys or full URLs.
 
 ## Configuration
 

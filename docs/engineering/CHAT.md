@@ -2,10 +2,10 @@
 
 Milestone 5 added the backend chat foundation for retrieval-grounded evidence previews. Milestone 20
 routes assistant answer text through an `AnswerProvider` interface. Milestone 21 adds provider status
-diagnostics for the backend API and web UI. The current default workflow does not call an LLM,
-embedding model, vector database, cloud service, or paid API. Future optional LLM adapters may be
-added behind interfaces, but deterministic evidence previews must remain available without credentials
-or paid services.
+diagnostics for the backend API and web UI. Milestone 22 adds one optional generic
+OpenAI-compatible provider adapter. The current default workflow does not call an LLM, embedding
+model, vector database, cloud service, or paid API. Deterministic evidence previews remain available
+without credentials or paid services.
 
 ## Flow
 
@@ -31,7 +31,7 @@ Provider output:
 
 - `AnswerResult`
 
-The only implemented provider is:
+The default provider is:
 
 ```text
 provider: deterministic-evidence
@@ -48,11 +48,40 @@ The local config setting is:
 answer_provider=deterministic-evidence
 ```
 
-Unsupported provider names fail clearly during provider selection. M20 intentionally does not add
-OpenAI, Groq, NIM, FreeLLMAPI, or any real LLM provider calls. Future optional providers may use
-free-tier APIs, local/open-source tools, local models, or free inference providers only if they remain
-isolated behind the provider interface, disabled by default, documented clearly, and graceful when
-credentials, quota, binaries, or local resources are unavailable.
+M22 adds this optional provider name:
+
+```text
+answer_provider=openai-compatible
+```
+
+OpenAI-compatible configuration fields:
+
+```text
+llm_base_url=https://example-provider.local/v1
+llm_model=example-model
+llm_api_key=
+llm_requires_api_key=false
+llm_timeout_seconds=30
+llm_max_tokens=700
+llm_temperature=0
+```
+
+`llm_base_url` and `llm_model` are required when `answer_provider=openai-compatible`. `llm_api_key`
+is required only when `llm_requires_api_key=true`. The API key is sent as a bearer token when present
+and is never exposed in provider status responses.
+
+The adapter sends a standard OpenAI-compatible `/chat/completions` request with the user question and
+retrieved evidence snippets. Its system instruction tells the provider to answer only from the supplied
+evidence, avoid invented facts, and avoid invented citations. PaperLens evidence rows remain the
+authoritative citations stored with the assistant message.
+
+If configuration is missing, the endpoint is unavailable, the request times out, the provider returns
+an error or rate limit, or the response shape is invalid, the provider returns a clear fallback message
+and deterministic evidence-preview text. Evidence rows are still stored by PaperLens.
+
+Groq, NVIDIA NIM, other OpenAI-compatible free-tier APIs, local OpenAI-compatible servers, and custom
+proxy/router endpoints are configuration examples only. None is hardcoded, official, or required.
+Unsupported provider names still fail clearly during provider selection.
 
 ## Provider diagnostics
 
@@ -67,6 +96,8 @@ The response includes:
 - `provider_name`
 - `provider_type`
 - `display_name`
+- `model_name`
+- `base_url_host`
 - `is_default`
 - `is_available`
 - `requires_api_key`
@@ -76,8 +107,11 @@ The response includes:
 - `status_message`
 
 For the default deterministic provider, the endpoint reports available, no API key, no network, no
-model download, and no streaming support. Unsupported provider config returns an unavailable
-`unknown` provider status with a clear status message.
+model download, and no streaming support. For the OpenAI-compatible provider, it reports
+`provider_type: "openai-compatible"`, the configured model, a safe base URL host, network requirement,
+API-key requirement based on `llm_requires_api_key`, and whether required config is present.
+Unsupported provider config returns an unavailable `unknown` provider status with a clear status
+message.
 
 The frontend chat workspace shows this same status in a small diagnostic panel. The panel is
 informational only; it does not change provider selection and does not add LLM synthesis.
@@ -155,7 +189,9 @@ chunk text and metadata.
 
 - Retrieval is lexical and uses `auto` mode: SQLite FTS5 when available, otherwise LIKE fallback.
 - No semantic retrieval, embedding-ranked retrieval, reranking, or LLM answer synthesis yet.
-- The only implemented answer provider is the deterministic evidence-preview provider.
+- Deterministic evidence preview is the only default provider.
 - Provider status UI is diagnostic only.
+- The OpenAI-compatible provider is optional, disabled by default, and not exercised by CI against a
+  real network endpoint.
 - No PDF page viewer yet.
 - Conversation schema is created with the existing local `create_all()` startup behavior; Alembic migrations are still future work.

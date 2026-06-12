@@ -383,8 +383,16 @@ export function ChatWorkspace() {
                 <dd>{providerStatus.provider_name}</dd>
               </div>
               <div>
+                <dt>Model</dt>
+                <dd>{providerStatus.model_name ?? "N/A"}</dd>
+              </div>
+              <div>
                 <dt>Type</dt>
                 <dd>{providerStatus.provider_type}</dd>
+              </div>
+              <div>
+                <dt>Host</dt>
+                <dd>{providerStatus.base_url_host ?? "N/A"}</dd>
               </div>
               <div>
                 <dt>API key</dt>

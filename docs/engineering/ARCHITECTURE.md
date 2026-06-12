@@ -13,6 +13,7 @@ SQLite LIKE/FTS5 retrieval
 Fake/hash embeddings for local scaffolding
 AnswerProvider interface
 Answer provider diagnostics
+Optional OpenAI-compatible answer adapter
 ```
 
 The default local workflow is zero-budget-first. It does not require Docker, paid APIs, cloud
@@ -43,6 +44,11 @@ become local development or core-test requirements.
 Milestone 21 exposes provider diagnostics through `GET /answer-provider/status` and the web chat
 workspace. This status surface is read-only and diagnostic. It reports the configured provider,
 availability, and whether API keys, network access, model downloads, or streaming are required.
+
+Milestone 22 adds an optional OpenAI-compatible `AnswerProvider` adapter. It is disabled by default
+and does not add a required SDK dependency. It can point to a compatible free-tier API, local server,
+or custom proxy/router by configuration, but the deterministic provider remains the local default and
+core-test path. API keys are optional and never surfaced in diagnostics.
 
 ## Production Architecture Target
 

@@ -163,27 +163,38 @@ disabled by default and fail gracefully.
 - Deterministic evidence-preview provider remains the default.
 - Diagnostic only; no LLM synthesis, network call, API key, or model download.
 
+### M22: OpenAI-Compatible Answer Provider
+
+- Optional `openai-compatible` `AnswerProvider` adapter.
+- Configurable `llm_base_url`, `llm_model`, optional `llm_api_key`, timeout, max tokens, and
+  temperature.
+- Evidence-grounded `/chat/completions` request construction.
+- Graceful fallback to deterministic evidence preview on missing config, timeout, provider error,
+  rate limit, invalid response, or network failure.
+- Provider diagnostics show model and safe host without exposing secrets.
+- Disabled by default; no real provider calls in tests.
+
 ## Proposed Next Milestones
 
-### M22: Benchmark Expansion
+### M23: Benchmark Expansion
 
 - Add multiple synthetic and real text-layer documents.
 - Add more distractors and evidence-type categories.
 - Track per-evidence-type results in reports.
 
-### M23: OCR and Scanned PDF Strategy
+### M24: OCR and Scanned PDF Strategy
 
 - Research open-source OCR options such as Tesseract and dependency cost.
 - Decide whether OCR can remain zero-budget-first and Windows-friendly.
 - Prototype only if disk/runtime cost is acceptable.
 
-### M24: Table and Figure Evidence Planning
+### M25: Table and Figure Evidence Planning
 
 - Define table/figure extraction requirements.
 - Add fixture design for table-like and figure-caption evidence.
 - Avoid heavy dependencies until the research value is clear.
 
-### M25: Optional Real Embedding Adapter
+### M26: Optional Real Embedding Adapter
 
 - Keep fake/hash provider as default.
 - Add optional real embedding provider only if it does not become a required dependency.
@@ -191,7 +202,7 @@ disabled by default and fail gracefully.
   the core workflow.
 - Evaluate semantic retrieval separately from lexical baselines.
 
-### M26: Optional LLM Answer Synthesis Prototype
+### M27: Optional LLM Answer Synthesis Evaluation
 
 - Add citation-constrained answer synthesis only after retrieval evaluation is stable.
 - Keep deterministic evidence preview as the fallback.
@@ -199,7 +210,7 @@ disabled by default and fail gracefully.
   `AnswerProvider` implementation.
 - Do not make API credentials, quota, or paid APIs required for local development.
 
-### M27: Free Deployment Experiments
+### M28: Free Deployment Experiments
 
 - Test free deployment tiers for demos only after local workflows are stable.
 - Keep local SQLite/storage workflow as the core development default.

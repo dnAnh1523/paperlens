@@ -269,7 +269,7 @@ def _search_chunks_fts5(db: Session, query: str, limit: int) -> list[ChunkSearch
         .join(Document, Document.id == DocumentChunk.document_id)
         .where(DocumentChunk.chunk_id.in_(distance_by_chunk_id))
     )
-    chunk_rows = db.execute(statement).all()
+    chunk_rows = list(db.execute(statement).all())
     chunk_rows.sort(key=lambda row: order_by_chunk_id[row[0].chunk_id])
 
     results: list[ChunkSearchResult] = []

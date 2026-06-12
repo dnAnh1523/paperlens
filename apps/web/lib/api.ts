@@ -149,6 +149,19 @@ export type ChatTurn = {
   assistant_message: ChatMessage;
 };
 
+export type AnswerProviderStatus = {
+  provider_name: string;
+  provider_type: "deterministic" | "free-tier-api" | "local-model" | "unknown";
+  display_name: string;
+  is_default: boolean;
+  is_available: boolean;
+  requires_api_key: boolean;
+  requires_network: boolean;
+  requires_model_download: boolean;
+  supports_streaming: boolean;
+  status_message: string;
+};
+
 async function parseError(response: Response): Promise<string> {
   try {
     const payload = (await response.json()) as { detail?: unknown };
@@ -174,6 +187,11 @@ export async function fetchHealth(): Promise<ApiHealth> {
     throw new Error(await parseError(response));
   }
   return response.json() as Promise<ApiHealth>;
+}
+
+export async function fetchAnswerProviderStatus(): Promise<AnswerProviderStatus> {
+  const response = await fetch(`${API_BASE_URL}/answer-provider/status`, { cache: "no-store" });
+  return parseJsonResponse<AnswerProviderStatus>(response);
 }
 
 export async function fetchDocuments(): Promise<PaperLensDocument[]> {

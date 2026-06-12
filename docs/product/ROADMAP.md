@@ -154,27 +154,36 @@ disabled by default and fail gracefully.
 - Existing chat API behavior and evidence snapshot storage preserved.
 - No real LLM provider calls, API keys, model downloads, or new dependencies.
 
+### M21: Provider Diagnostics
+
+- `GET /answer-provider/status` backend endpoint.
+- Provider metadata for type, display name, default status, availability, API key requirement,
+  network requirement, model download requirement, streaming support, and status message.
+- Frontend provider status panel in the chat workspace.
+- Deterministic evidence-preview provider remains the default.
+- Diagnostic only; no LLM synthesis, network call, API key, or model download.
+
 ## Proposed Next Milestones
 
-### M21: Benchmark Expansion
+### M22: Benchmark Expansion
 
 - Add multiple synthetic and real text-layer documents.
 - Add more distractors and evidence-type categories.
 - Track per-evidence-type results in reports.
 
-### M22: OCR and Scanned PDF Strategy
+### M23: OCR and Scanned PDF Strategy
 
 - Research open-source OCR options such as Tesseract and dependency cost.
 - Decide whether OCR can remain zero-budget-first and Windows-friendly.
 - Prototype only if disk/runtime cost is acceptable.
 
-### M23: Table and Figure Evidence Planning
+### M24: Table and Figure Evidence Planning
 
 - Define table/figure extraction requirements.
 - Add fixture design for table-like and figure-caption evidence.
 - Avoid heavy dependencies until the research value is clear.
 
-### M24: Optional Real Embedding Adapter
+### M25: Optional Real Embedding Adapter
 
 - Keep fake/hash provider as default.
 - Add optional real embedding provider only if it does not become a required dependency.
@@ -182,7 +191,7 @@ disabled by default and fail gracefully.
   the core workflow.
 - Evaluate semantic retrieval separately from lexical baselines.
 
-### M25: Optional LLM Answer Synthesis Prototype
+### M26: Optional LLM Answer Synthesis Prototype
 
 - Add citation-constrained answer synthesis only after retrieval evaluation is stable.
 - Keep deterministic evidence preview as the fallback.
@@ -190,7 +199,7 @@ disabled by default and fail gracefully.
   `AnswerProvider` implementation.
 - Do not make API credentials, quota, or paid APIs required for local development.
 
-### M26: Free Deployment Experiments
+### M27: Free Deployment Experiments
 
 - Test free deployment tiers for demos only after local workflows are stable.
 - Keep local SQLite/storage workflow as the core development default.

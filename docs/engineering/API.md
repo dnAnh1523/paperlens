@@ -202,6 +202,37 @@ GET /search/status?mode=auto
 Returns whether SQLite FTS5 is available, the default retrieval mode, and the active backend that would
 be used for the requested mode.
 
+## Answer provider
+
+### Get answer provider status
+
+```http
+GET /answer-provider/status
+```
+
+Returns the configured answer provider diagnostics. This endpoint is read-only and does not call an
+LLM or external provider.
+
+Response:
+
+```json
+{
+  "provider_name": "deterministic-evidence",
+  "provider_type": "deterministic",
+  "display_name": "Deterministic evidence preview",
+  "is_default": true,
+  "is_available": true,
+  "requires_api_key": false,
+  "requires_network": false,
+  "requires_model_download": false,
+  "supports_streaming": false,
+  "status_message": "Default local deterministic provider is available. It creates evidence-preview answers from retrieved chunks and does not call an LLM."
+}
+```
+
+Unsupported provider config returns `provider_type: "unknown"` and `is_available: false` with a clear
+status message. M21 does not add LLM synthesis or real provider integrations.
+
 ## Conversations
 
 ### Create conversation

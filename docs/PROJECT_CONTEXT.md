@@ -26,12 +26,13 @@ Scientific and technical papers contain important evidence across text, tables, 
 - Retrieval: SQLite LIKE fallback and SQLite FTS5 when available
 - Embeddings: deterministic fake/hash vectors for pipeline scaffolding only
 - Answer generation: provider interface with deterministic evidence-preview provider as the default
+  plus provider status diagnostics
 - Evaluation: local fixture seeding, smoke test, synthetic benchmark v1, and JSON/Markdown reports
 - Optional adapters later: free-tier APIs, open-source OCR, local models, free deployment tiers,
   OpenAI-compatible free-provider proxies, PostgreSQL, object storage, and managed services behind
   interfaces
 
-## Current product state after Milestone 20
+## Current product state after Milestone 21
 
 PaperLens can run a complete local, non-LLM evidence-preview workflow:
 
@@ -46,6 +47,7 @@ PaperLens can run a complete local, non-LLM evidence-preview workflow:
 8. Seed local evaluation fixtures without a running API server.
 9. Compare LIKE, FTS5, and AUTO on smoke and benchmark datasets.
 10. Generate local JSON and Markdown retrieval reports under ignored `evals/runs/`.
+11. View the configured answer provider status in the backend API and web chat workspace.
 
 The system is still not a full multimodal RAG system. It has no LLM answer synthesis, no real
 embeddings, no vector database, no OCR, no rendered PDF/page viewer, no table/figure/equation
@@ -71,6 +73,7 @@ Docker image pulls and WSL2 Docker storage consumed too much disk space on the W
 - Page-aware chunk metadata and local lexical search with LIKE/FTS5/AUTO modes.
 - Deterministic chat evidence-preview API and frontend chat UI.
 - AnswerProvider interface with deterministic local evidence-preview provider as the default.
+- Answer provider status API and frontend diagnostic panel.
 - Source context preview and stable evidence snapshot fallback.
 - Fake/hash embedding indexing scaffold that does not affect retrieval ranking.
 - Local retrieval evaluation harness, fixture seeding, benchmark v1, and JSON/Markdown reports.
@@ -395,6 +398,23 @@ Current limitation: M20 does not add LLM synthesis or any real provider integrat
 implemented answer provider is deterministic and local. Future optional providers may use free-tier
 APIs or local/open-source tools only if they stay isolated, disabled by default, documented, and
 graceful when unavailable.
+
+## Milestone 21 Progress: Provider Diagnostics
+
+Implemented in feature branch `feature/m21-provider-diagnostics`:
+
+- Added answer provider status metadata for provider name, provider type, display name, availability,
+  default status, API key requirement, network requirement, model download requirement, streaming
+  support, and status message.
+- Added `GET /answer-provider/status`.
+- Deterministic provider status reports available, local, no API key, no network, no model download,
+  and no streaming support.
+- Unsupported provider config reports an unavailable `unknown` provider status instead of breaking the
+  diagnostics endpoint.
+- Added a small frontend provider status panel in the chat workspace.
+
+Current limitation: M21 is diagnostic only. It does not add LLM synthesis, streaming, optional
+free-tier providers, local model providers, network calls, API keys, or model downloads.
 
 ## Zero-Budget-First Policy
 

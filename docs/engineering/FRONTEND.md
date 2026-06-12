@@ -61,6 +61,18 @@ The expanded card marks live source context when the current chunk still exists.
 regenerated or deleted, the card stays expandable and shows the stored snapshot captured when the
 assistant answer was created.
 
+## Milestone 21 Provider Diagnostics
+
+The chat workspace shows a small answer provider status panel. It calls:
+
+```http
+GET /answer-provider/status
+```
+
+The panel displays the active provider name, availability, provider type, and whether API keys,
+network access, model downloads, or streaming are required. This is diagnostic only. It does not add
+LLM synthesis or change chat behavior.
+
 ## Configuration
 
 The frontend reads `NEXT_PUBLIC_API_BASE_URL` when provided. If absent, it defaults to `http://127.0.0.1:8000`.
@@ -76,3 +88,4 @@ $env:NPM_CONFIG_CACHE="F:\paperlens-npm-cache"; npm install
 - No authentication.
 - Ingestion and chunking still run synchronously through API requests.
 - No PDF page viewer yet.
+- No LLM synthesis in the frontend; answer provider status is informational only.

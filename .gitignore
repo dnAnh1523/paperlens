@@ -8,6 +8,7 @@ __pycache__/
 *.egg-info
 node_modules/
 .next/
+*.tsbuildinfo
 dist/
 build/
 data/

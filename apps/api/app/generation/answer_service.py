@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Protocol
 
 from app.config import settings
@@ -11,6 +12,27 @@ MAX_EXCERPT_CHARS = 600
 
 class UnsupportedAnswerProviderError(ValueError):
     """Raised when chat answer generation is configured for an unknown provider."""
+
+
+class AnswerProviderType(StrEnum):
+    DETERMINISTIC = "deterministic"
+    FREE_TIER_API = "free-tier-api"
+    LOCAL_MODEL = "local-model"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class AnswerProviderStatus:
+    provider_name: str
+    provider_type: str
+    display_name: str
+    is_default: bool
+    is_available: bool
+    requires_api_key: bool
+    requires_network: bool
+    requires_model_download: bool
+    supports_streaming: bool
+    status_message: str
 
 
 @dataclass(frozen=True)
@@ -107,4 +129,43 @@ def get_answer_provider(provider_name: str | None = None) -> AnswerProvider:
     raise UnsupportedAnswerProviderError(
         f"Unsupported answer provider '{configured_name}'. "
         f"Supported providers: {DEFAULT_ANSWER_PROVIDER}."
+    )
+
+
+def get_answer_provider_status(provider_name: str | None = None) -> AnswerProviderStatus:
+    configured_name = provider_name if provider_name is not None else settings.answer_provider
+    normalized_name = configured_name.strip().lower()
+    is_default = normalized_name == DEFAULT_ANSWER_PROVIDER
+
+    if normalized_name == DEFAULT_ANSWER_PROVIDER:
+        return AnswerProviderStatus(
+            provider_name=DEFAULT_ANSWER_PROVIDER,
+            provider_type=AnswerProviderType.DETERMINISTIC.value,
+            display_name="Deterministic evidence preview",
+            is_default=is_default,
+            is_available=True,
+            requires_api_key=False,
+            requires_network=False,
+            requires_model_download=False,
+            supports_streaming=False,
+            status_message=(
+                "Default local deterministic provider is available. It creates evidence-preview "
+                "answers from retrieved chunks and does not call an LLM."
+            ),
+        )
+
+    return AnswerProviderStatus(
+        provider_name=configured_name,
+        provider_type=AnswerProviderType.UNKNOWN.value,
+        display_name=configured_name or "Unconfigured answer provider",
+        is_default=False,
+        is_available=False,
+        requires_api_key=False,
+        requires_network=False,
+        requires_model_download=False,
+        supports_streaming=False,
+        status_message=(
+            f"Unsupported answer provider '{configured_name}'. "
+            f"Supported providers: {DEFAULT_ANSWER_PROVIDER}."
+        ),
     )

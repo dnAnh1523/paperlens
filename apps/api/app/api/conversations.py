@@ -2,6 +2,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.generation.answer_service import UnsupportedAnswerProviderError
 from app.models.conversation import Conversation, Message, MessageEvidence
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
@@ -131,12 +132,18 @@ def create_conversation_message(
     if conversation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    turn = post_user_message(
-        db,
-        conversation=conversation,
-        content=payload.content,
-        evidence_limit=limit,
-    )
+    try:
+        turn = post_user_message(
+            db,
+            conversation=conversation,
+            content=payload.content,
+            evidence_limit=limit,
+        )
+    except UnsupportedAnswerProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
     return ChatTurnRead(
         user_message=MessageRead.model_validate(turn.user_message),
         assistant_message=MessageRead.model_validate(turn.assistant_message),

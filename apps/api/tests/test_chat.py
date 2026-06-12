@@ -1,9 +1,17 @@
-from fastapi.testclient import TestClient
 from uuid import uuid4
 
+import pytest
+from fastapi.testclient import TestClient
+
 from app.db.session import SessionLocal
+from app.generation.answer_service import (
+    AnswerRequest,
+    AnswerResult,
+    UnsupportedAnswerProviderError,
+)
 from app.main import app
 from app.models.conversation import Conversation, Message, MessageEvidence
+from app.services.chat_service import post_user_message
 
 
 def _term(prefix: str) -> str:
@@ -127,6 +135,49 @@ def test_post_message_creates_user_assistant_and_evidence() -> None:
     assert evidence["char_end_snapshot"] is not None
     assert evidence["estimated_token_count_snapshot"] is not None
     assert evidence["page_number"] is None
+
+
+def test_post_user_message_uses_answer_provider_interface() -> None:
+    class RecordingAnswerProvider:
+        provider_name = "recording-test"
+        model_name = "recording-test-v1"
+
+        def __init__(self) -> None:
+            self.request: AnswerRequest | None = None
+
+        def generate(self, request: AnswerRequest) -> AnswerResult:
+            self.request = request
+            return AnswerResult(
+                provider=self.provider_name,
+                model=self.model_name,
+                content=f"Provider response with {len(request.evidence)} evidence rows.",
+            )
+
+    client = TestClient(app)
+    term = _term("chatprovider")
+    document = _create_chunked_document(client, term)
+    conversation = client.post("/conversations").json()
+    provider = RecordingAnswerProvider()
+
+    with SessionLocal() as db:
+        stored_conversation = db.get(Conversation, conversation["conversation_id"])
+        assert stored_conversation is not None
+
+        turn = post_user_message(
+            db,
+            conversation=stored_conversation,
+            content=term,
+            evidence_limit=3,
+            answer_provider=provider,
+        )
+
+    assert provider.request is not None
+    assert provider.request.question == term
+    assert provider.request.evidence
+    assert provider.request.evidence[0].document_id == document["id"]
+    assert turn.assistant_message.content.startswith("Provider response with")
+    assert turn.assistant_message.evidence
+    assert turn.assistant_message.evidence[0].document_id == document["id"]
 
 
 def test_post_message_evidence_includes_pdf_page_metadata() -> None:
@@ -259,6 +310,31 @@ def test_no_evidence_case_creates_clear_assistant_message() -> None:
     assert assistant["role"] == "assistant"
     assert assistant["evidence"] == []
     assert "no relevant evidence was found" in assistant["content"]
+
+
+def test_unsupported_answer_provider_returns_clear_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_unsupported_provider():
+        raise UnsupportedAnswerProviderError(
+            "Unsupported answer provider 'future-provider'. "
+            "Supported providers: deterministic-evidence."
+        )
+
+    monkeypatch.setattr(
+        "app.services.chat_service.get_answer_provider",
+        raise_unsupported_provider,
+    )
+    client = TestClient(app)
+    conversation = client.post("/conversations").json()
+
+    response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": "hello"},
+    )
+
+    assert response.status_code == 500
+    assert "Unsupported answer provider" in response.json()["detail"]
 
 
 def test_reading_message_history_returns_user_and_assistant_messages() -> None:

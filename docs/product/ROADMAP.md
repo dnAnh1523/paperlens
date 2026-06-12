@@ -139,33 +139,42 @@ disabled by default and fail gracefully.
 - Markdown report output for thesis drafting
 - Reports under ignored `evals/runs/`
 
-## Proposed Next Milestones
-
 ### M19: Research Docs Cleanup
 
 - Align project context, thesis docs, product roadmap, and ADRs with M1-M18.
 - Record what current experiments measure and what they do not prove.
 - Keep overclaiming out of thesis and product docs.
+- Clarify zero-budget-first default versus optional free-tier/open-source adapters.
 
-### M20: Benchmark Expansion
+### M20: Answer Provider Interface
+
+- `AnswerProvider` protocol for chat answer text generation.
+- `AnswerRequest`, `AnswerResult`, and `EvidenceInput` structures.
+- Deterministic evidence-preview provider remains the default.
+- Existing chat API behavior and evidence snapshot storage preserved.
+- No real LLM provider calls, API keys, model downloads, or new dependencies.
+
+## Proposed Next Milestones
+
+### M21: Benchmark Expansion
 
 - Add multiple synthetic and real text-layer documents.
 - Add more distractors and evidence-type categories.
 - Track per-evidence-type results in reports.
 
-### M21: OCR and Scanned PDF Strategy
+### M22: OCR and Scanned PDF Strategy
 
 - Research open-source OCR options such as Tesseract and dependency cost.
 - Decide whether OCR can remain zero-budget-first and Windows-friendly.
 - Prototype only if disk/runtime cost is acceptable.
 
-### M22: Table and Figure Evidence Planning
+### M23: Table and Figure Evidence Planning
 
 - Define table/figure extraction requirements.
 - Add fixture design for table-like and figure-caption evidence.
 - Avoid heavy dependencies until the research value is clear.
 
-### M23: Optional Real Embedding Adapter
+### M24: Optional Real Embedding Adapter
 
 - Keep fake/hash provider as default.
 - Add optional real embedding provider only if it does not become a required dependency.
@@ -173,15 +182,15 @@ disabled by default and fail gracefully.
   the core workflow.
 - Evaluate semantic retrieval separately from lexical baselines.
 
-### M24: LLM Answer Synthesis Prototype
+### M25: Optional LLM Answer Synthesis Prototype
 
 - Add citation-constrained answer synthesis only after retrieval evaluation is stable.
 - Keep deterministic evidence preview as the fallback.
 - Evaluate optional free-tier LLM providers or OpenAI-compatible free-provider proxies behind an
-  interface.
+  `AnswerProvider` implementation.
 - Do not make API credentials, quota, or paid APIs required for local development.
 
-### M25: Free Deployment Experiments
+### M26: Free Deployment Experiments
 
 - Test free deployment tiers for demos only after local workflows are stable.
 - Keep local SQLite/storage workflow as the core development default.

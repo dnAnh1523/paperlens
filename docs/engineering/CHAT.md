@@ -1,9 +1,10 @@
 # Chat
 
-Milestone 5 adds the backend chat foundation for retrieval-grounded evidence previews. The current
-default workflow does not call an LLM, embedding model, vector database, cloud service, or paid API.
-Future optional LLM adapters may be added behind interfaces, but deterministic evidence previews must
-remain available without credentials or paid services.
+Milestone 5 added the backend chat foundation for retrieval-grounded evidence previews. Milestone 20
+routes assistant answer text through an `AnswerProvider` interface. The current default workflow does
+not call an LLM, embedding model, vector database, cloud service, or paid API. Future optional LLM
+adapters may be added behind interfaces, but deterministic evidence previews must remain available
+without credentials or paid services.
 
 ## Flow
 
@@ -11,9 +12,46 @@ remain available without credentials or paid services.
 2. Post a user message with `POST /conversations/{conversation_id}/messages`.
 3. The backend stores the user message.
 4. The backend searches local chunks with the existing lexical retrieval service.
-5. The backend stores an assistant message generated from a deterministic template.
-6. Retrieved chunks are stored as `message_evidence` rows linked to the assistant message.
-7. Message history can be read with `GET /conversations/{conversation_id}/messages`.
+5. The backend sends the question and retrieved evidence to the configured answer provider.
+6. The default provider returns deterministic evidence-preview text.
+7. The backend stores an assistant message and links retrieved chunks as `message_evidence` rows.
+8. Message history can be read with `GET /conversations/{conversation_id}/messages`.
+
+## Answer providers
+
+M20 adds the answer provider boundary in `apps/api/app/generation/answer_service.py`.
+
+Provider inputs:
+
+- `AnswerRequest`
+- `EvidenceInput`
+
+Provider output:
+
+- `AnswerResult`
+
+The only implemented provider is:
+
+```text
+provider: deterministic-evidence
+model: evidence-preview-template-v1
+```
+
+The default provider reproduces the existing evidence-preview behavior. It formats retrieved chunks,
+document references, chunk references, page metadata when available, scores, and the no-evidence
+message. It does not synthesize claims beyond the retrieved evidence list.
+
+The local config setting is:
+
+```text
+answer_provider=deterministic-evidence
+```
+
+Unsupported provider names fail clearly during provider selection. M20 intentionally does not add
+OpenAI, Groq, NIM, FreeLLMAPI, or any real LLM provider calls. Future optional providers may use
+free-tier APIs, local/open-source tools, local models, or free inference providers only if they remain
+isolated behind the provider interface, disabled by default, documented clearly, and graceful when
+credentials, quota, binaries, or local resources are unavailable.
 
 ## Frontend flow
 
@@ -38,7 +76,10 @@ the original chunk was regenerated or deleted.
 
 ## Response behavior
 
-Assistant messages always identify themselves as evidence previews. When chunks match, the response lists retrieved evidence snippets with document, chunk, and page references when page metadata is available. When no chunks match, the response clearly says no relevant evidence was found and suggests chunking ingested documents or using terms from uploaded sources.
+Assistant messages always identify themselves as evidence previews. When chunks match, the default
+provider lists retrieved evidence snippets with document, chunk, and page references when page metadata
+is available. When no chunks match, the response clearly says no relevant evidence was found and
+suggests chunking ingested documents or using terms from uploaded sources.
 
 ## Evidence storage
 
@@ -82,6 +123,7 @@ chunk text and metadata.
 ## Local limitations
 
 - Retrieval is lexical and uses `auto` mode: SQLite FTS5 when available, otherwise LIKE fallback.
-- No semantic retrieval, embeddings, reranking, or answer synthesis yet.
+- No semantic retrieval, embedding-ranked retrieval, reranking, or LLM answer synthesis yet.
+- The only implemented answer provider is the deterministic evidence-preview provider.
 - No PDF page viewer yet.
 - Conversation schema is created with the existing local `create_all()` startup behavior; Alembic migrations are still future work.

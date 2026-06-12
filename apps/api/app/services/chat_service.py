@@ -6,12 +6,18 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.generation.answer_service import (
+    AnswerProvider,
+    AnswerRequest,
+    EvidenceInput,
+    excerpt_text,
+    get_answer_provider,
+)
 from app.models.conversation import Conversation, Message, MessageEvidence, MessageRole
 from app.services.retrieval_service import ChunkSearchResult, search_chunks
 
 DEFAULT_CONVERSATION_TITLE = "New conversation"
 DEFAULT_EVIDENCE_LIMIT = 5
-MAX_EXCERPT_CHARS = 600
 
 
 @dataclass(frozen=True)
@@ -29,13 +35,6 @@ def _conversation_title_from_question(question: str) -> str:
     if not normalized:
         return DEFAULT_CONVERSATION_TITLE
     return normalized[:60]
-
-
-def _excerpt(text: str, max_chars: int = MAX_EXCERPT_CHARS) -> str:
-    normalized = re.sub(r"\s+", " ", text).strip()
-    if len(normalized) <= max_chars:
-        return normalized
-    return f"{normalized[: max_chars - 3].rstrip()}..."
 
 
 def create_conversation(db: Session, title: str | None = None) -> Conversation:
@@ -89,35 +88,18 @@ def list_messages(db: Session, conversation_id: str) -> list[Message]:
     return list(db.scalars(statement).all())
 
 
-def _build_assistant_content(question: str, results: list[ChunkSearchResult]) -> str:
-    if not results:
-        return (
-            "Evidence preview: no relevant evidence was found for this question.\n\n"
-            "PaperLens has stored your question, but the local lexical search did not match any "
-            "indexed chunks. Try chunking ingested documents first or use terms that appear in the "
-            "uploaded sources."
-        )
-
-    lines = [
-        "Evidence preview: this deterministic draft is grounded only in retrieved local chunks.",
-        "",
-        f"Question: {question.strip()}",
-        "",
-        "Retrieved evidence:",
-    ]
-    for result in results:
-        page_label = (
-            f", page={result.chunk.page_number}" if result.chunk.page_number is not None else ""
-        )
-        lines.append(
-            f"{result.rank}. {result.document.title} "
-            f"(document_id={result.document.id}, chunk_id={result.chunk.chunk_id}, "
-            f"chunk_index={result.chunk.chunk_index}{page_label}, score={result.score:g})"
-        )
-        lines.append(f"   {_excerpt(result.chunk.text, max_chars=260)}")
-    lines.append("")
-    lines.append("No external LLM was called for this response.")
-    return "\n".join(lines)
+def _evidence_input_from_search_result(result: ChunkSearchResult) -> EvidenceInput:
+    return EvidenceInput(
+        rank=result.rank,
+        score=result.score,
+        document_id=result.document.id,
+        document_title=result.document.title,
+        document_filename=result.document.original_filename,
+        chunk_id=result.chunk.chunk_id,
+        chunk_index=result.chunk.chunk_index,
+        text=result.chunk.text,
+        page_number=result.chunk.page_number,
+    )
 
 
 def _create_evidence_rows(
@@ -132,7 +114,7 @@ def _create_evidence_rows(
             chunk_id=result.chunk.chunk_id,
             rank=result.rank,
             score=result.score,
-            excerpt=_excerpt(result.chunk.text),
+            excerpt=excerpt_text(result.chunk.text),
             full_chunk_text_snapshot=result.chunk.text,
             document_title_snapshot=result.document.title,
             document_filename_snapshot=result.document.original_filename,
@@ -153,9 +135,17 @@ def post_user_message(
     conversation: Conversation,
     content: str,
     evidence_limit: int = DEFAULT_EVIDENCE_LIMIT,
+    answer_provider: AnswerProvider | None = None,
 ) -> ChatTurn:
     question = content.strip()
     results = search_chunks(db, query=question, limit=evidence_limit)
+    provider = answer_provider or get_answer_provider()
+    answer = provider.generate(
+        AnswerRequest(
+            question=question,
+            evidence=[_evidence_input_from_search_result(result) for result in results],
+        )
+    )
     timestamp = _now()
     assistant_timestamp = timestamp + timedelta(microseconds=1)
 
@@ -174,7 +164,7 @@ def post_user_message(
         message_id=str(uuid4()),
         conversation_id=conversation.conversation_id,
         role=MessageRole.ASSISTANT,
-        content=_build_assistant_content(question, results),
+        content=answer.content,
         created_at=assistant_timestamp,
     )
     evidence_rows = _create_evidence_rows(assistant_message, results)

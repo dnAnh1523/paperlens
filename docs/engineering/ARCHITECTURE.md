@@ -11,6 +11,7 @@ SQLite metadata database
 Local file storage
 SQLite LIKE/FTS5 retrieval
 Fake/hash embeddings for local scaffolding
+AnswerProvider interface
 ```
 
 The default local workflow is zero-budget-first. It does not require Docker, paid APIs, cloud
@@ -28,12 +29,15 @@ PDF paper
     -> page-aware text extraction
     -> source-grounded chunks
     -> lexical retrieval baseline
+    -> AnswerProvider
     -> evidence-preview chat with citations
 ```
 
-Later research work may add layout-aware evidence extraction, real embeddings, multimodal reasoning,
-and optional deployment adapters. Those additions must stay behind interfaces and must not become local
-development or core-test requirements.
+The default `AnswerProvider` is deterministic and local. It returns the current evidence-preview text
+without LLM calls, API keys, model downloads, or paid services. Later research work may add
+layout-aware evidence extraction, real embeddings, optional LLM answer providers, multimodal
+reasoning, and optional deployment adapters. Those additions must stay behind interfaces and must not
+become local development or core-test requirements.
 
 ## Production Architecture Target
 

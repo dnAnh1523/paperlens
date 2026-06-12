@@ -6,9 +6,9 @@ embeddings, or vector search.
 Implemented baseline:
 
 - Dataset format: `evals/datasets/*.json`
-- Sample dataset: `evals/datasets/sample_retrieval_eval.json`
+- Sample smoke dataset: `evals/datasets/sample_retrieval_smoke.json`
 - Sample source fixture: `evals/fixtures/sample_retrieval_source.txt`
-- CLI: `python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json`
+- CLI: `python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json`
 - Metrics: `hit@k`, mean reciprocal rank, and no-result query count
 
 See `docs/engineering/EVALUATION.md` for the current runnable workflow.

@@ -9,7 +9,7 @@ Retrieval datasets are JSON files with a top-level `cases` list:
 
 ```json
 {
-  "name": "sample_retrieval_eval",
+  "name": "sample_retrieval_smoke",
   "description": "Optional description",
   "default_k": 5,
   "cases": [
@@ -38,20 +38,40 @@ Supported case fields:
 A case is a hit when a retrieved chunk matches the expected filename, if provided, and contains all
 required expected chunk terms.
 
-## Sample dataset
+## Sample smoke dataset
 
 Committed sample files:
 
 ```text
 evals/fixtures/sample_retrieval_source.txt
-evals/datasets/sample_retrieval_eval.json
+evals/datasets/sample_retrieval_smoke.json
 ```
 
-To run the sample as a hit-producing eval, first upload `evals/fixtures/sample_retrieval_source.txt`
-through the web UI and click `Prepare document`. Then run from the repository root:
+This sample is a smoke test for fixture seeding, chunk indexing, and retrieval plumbing. It deliberately
+uses explicit anchor terms in the fixture and queries:
+
+- `localstackeval`
+- `chunkingeval`
+- `sourceprevieweval`
+
+When LIKE, FTS5, and AUTO all return 3/3, that means the seeded fixture can be found consistently by
+each retrieval mode. It does not prove FTS5 is better than LIKE, and it is not a retrieval-quality
+benchmark.
+
+To run the smoke test, seed the fixture into the local app state from the repository root:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode auto
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/sample_retrieval_source.txt --reset
+```
+
+The seeding command does not require the FastAPI server. It creates or reuses a document row for the
+fixture, copies the source into local app storage, runs ingestion, and runs chunking. `--reset` removes
+matching fixture documents before recreating them, which is useful when you want a clean eval setup.
+
+Then run:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --mode auto
 ```
 
 The script defaults to the same local app state used by the backend development setup:
@@ -77,21 +97,21 @@ The report prints:
 Override `k` with:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --limit 10 --mode like
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --limit 10 --mode like
 ```
 
 Compare retrieval modes with:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode auto
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --mode auto
 ```
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode like
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --mode like
 ```
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode fts5
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --mode fts5
 ```
 
 If SQLite FTS5 is unavailable, `--mode fts5` exits with a clear unavailable message. `--mode auto`
@@ -100,7 +120,7 @@ falls back to LIKE.
 Milestone 15 adds one-command comparison across LIKE, FTS5 when available, and AUTO:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --compare-modes
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes
 ```
 
 The comparison report prints one mode summary table with `hit@k`, MRR, no-result count, and active
@@ -112,13 +132,13 @@ FTS5 row is marked unavailable and LIKE/AUTO still run.
 Write a local JSON report with:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode auto --write-json
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --mode auto --write-json
 ```
 
 Write a comparison JSON report with:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --compare-modes --write-json
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes --write-json
 ```
 
 Generated reports are written under `evals/runs/`, which is gitignored.
@@ -126,8 +146,13 @@ Generated reports are written under `evals/runs/`, which is gitignored.
 ## Limitations
 
 - Metrics only check local lexical retrieval against expected filenames and chunk text terms.
+- The committed sample is a smoke test with explicit anchor terms, not a benchmark for retrieval
+  quality.
 - There is no LLM judge, answer faithfulness score, semantic similarity, reranking, or embedding recall yet.
-- The harness evaluates current local SQLite state, so documents must be uploaded, ingested, and chunked first.
+- A future benchmark should use harder natural-language questions, multiple documents, distractor
+  chunks, expected evidence spans, and mode-specific analysis.
+- The harness evaluates current local SQLite state, so documents must be seeded or uploaded,
+  ingested, and chunked first.
 
 ## PDF notes
 

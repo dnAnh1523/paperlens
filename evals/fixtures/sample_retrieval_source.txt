@@ -1,9 +1,9 @@
-PaperLens is a local-native research application for scientific and technical document question answering.
+PaperLens is a zero-budget, local-native research application for scientific and technical document question answering on Windows 11.
 
-The local development stack uses FastAPI for the backend, Next.js for the browser interface, SQLite for metadata, and local folders for uploaded files and extracted artifacts. This setup is designed for Windows 11 development without Docker.
+Eval anchor localstackeval localstackeval localstackeval localstackeval localstackeval: PaperLens uses FastAPI for the backend, Next.js for the browser interface, SQLite for metadata, and local folders for uploaded files and extracted artifacts.
 
-The ingestion pipeline extracts text from supported local documents and writes extracted_text.txt under the document artifacts folder. Chunking then splits the extracted text into deterministic source-grounded chunks with character offsets and estimated token counts.
+Eval anchor chunkingeval chunkingeval chunkingeval chunkingeval chunkingeval: The ingestion pipeline writes extracted_text.txt, and chunking splits that text into deterministic source-grounded chunks with character offsets and estimated token counts.
 
 The retrieval foundation is lexical. It searches stored document chunks in SQLite and returns ranked evidence chunks with document metadata. The chat API does not call an LLM yet; it creates a deterministic evidence preview from retrieved chunks.
 
-Source evidence preview lets a user open an evidence card and inspect the selected retrieved chunk together with nearby previous and next chunks. This helps verify that a chat answer is grounded in local source context.
+Eval anchor sourceprevieweval sourceprevieweval sourceprevieweval sourceprevieweval sourceprevieweval: Source evidence preview lets a user inspect the selected retrieved chunk together with previous and next chunks, so chat evidence can be checked against local source context.

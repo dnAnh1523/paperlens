@@ -1,4 +1,5 @@
 import hashlib
+import mimetypes
 import shutil
 from pathlib import Path
 from uuid import uuid4
@@ -26,6 +27,18 @@ SUPPORTED_CONTENT_TYPES = {
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
+CONTENT_TYPES_BY_SUFFIX = {
+    ".pdf": "application/pdf",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".markdown": "text/markdown",
+    ".csv": "text/csv",
+}
+
 
 def _safe_filename(filename: str) -> str:
     cleaned = Path(filename).name.strip().replace(" ", "_")
@@ -43,6 +56,15 @@ def _sha256_file(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def guess_content_type_for_filename(filename: str) -> str:
+    suffix_content_type = CONTENT_TYPES_BY_SUFFIX.get(Path(filename).suffix.lower())
+    if suffix_content_type is not None:
+        return suffix_content_type
+
+    guessed_content_type, _encoding = mimetypes.guess_type(filename)
+    return guessed_content_type or "application/octet-stream"
 
 
 def create_document_from_upload(db: Session, upload: UploadFile) -> Document:
@@ -93,6 +115,56 @@ def create_document_from_upload(db: Session, upload: UploadFile) -> Document:
     db.commit()
     db.refresh(document)
     run_ingestion(db, document)
+    db.refresh(document)
+    return document
+
+
+def create_document_from_local_path(
+    db: Session,
+    source_path: Path,
+    *,
+    content_type: str | None = None,
+    original_filename: str | None = None,
+) -> Document:
+    if not source_path.exists() or not source_path.is_file():
+        raise ValueError(f"Source file not found: {source_path}")
+
+    filename = original_filename or source_path.name
+    resolved_content_type = content_type or guess_content_type_for_filename(filename)
+    if resolved_content_type not in SUPPORTED_CONTENT_TYPES:
+        raise ValueError(f"Unsupported file type: {resolved_content_type}")
+
+    file_size = source_path.stat().st_size
+    if file_size > MAX_UPLOAD_BYTES:
+        raise ValueError("Source file exceeds the 50 MB limit.")
+
+    document_id = str(uuid4())
+    safe_filename = _safe_filename(filename)
+    document_dir = settings.storage_path / "documents" / document_id
+    document_dir.mkdir(parents=True, exist_ok=True)
+    stored_file_path = document_dir / safe_filename
+    shutil.copy2(source_path, stored_file_path)
+
+    document = Document(
+        id=document_id,
+        title=_document_title(filename),
+        original_filename=filename,
+        content_type=resolved_content_type,
+        file_size_bytes=file_size,
+        sha256=_sha256_file(stored_file_path),
+        storage_path=str(stored_file_path),
+        status=DocumentStatus.PENDING,
+    )
+    job = IngestionJob(
+        id=str(uuid4()),
+        document_id=document_id,
+        status=IngestionJobStatus.PENDING,
+        stage="queued",
+    )
+    document.ingestion_jobs.append(job)
+
+    db.add(document)
+    db.commit()
     db.refresh(document)
     return document
 

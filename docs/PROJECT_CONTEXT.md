@@ -272,6 +272,26 @@ Implemented in feature branch `feature/m15-retrieval-eval-comparison`:
 Current limitation: comparison is still lexical and term-based. It does not evaluate answer generation,
 semantic similarity, embeddings, reranking, or LLM faithfulness.
 
+## Milestone 16 Progress: Eval Fixture Seeding
+
+Implemented in feature branch `feature/m16-eval-fixture-seeding`:
+
+- Added `scripts/seed_eval_fixture.py` to seed a committed local fixture into the app SQLite/storage
+  state without running the FastAPI server.
+- The seeding path creates or reuses a document record, stores the fixture under the normal local
+  document storage folder, runs ingestion, and runs chunking.
+- `--reset` removes matching fixture documents before recreating them, which makes sample retrieval
+  evaluation reproducible from local state.
+- The sample smoke-test flow is now:
+  `python scripts/seed_eval_fixture.py --fixture evals/fixtures/sample_retrieval_source.txt --reset`
+  followed by `python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes`.
+- The committed sample uses explicit anchor terms, so 3/3 across LIKE, FTS5, and AUTO verifies local
+  seeding/indexing/retrieval plumbing only. It is not a retrieval-quality benchmark.
+
+Current limitation: fixture seeding writes to the configured local development database and storage
+folder. Harder benchmark datasets with natural-language questions and distractor documents are future
+work. Generated SQLite files, uploads, artifacts, and eval run outputs remain ignored by Git.
+
 ## Budget Constraint
 
 PaperLens is developed under a zero-budget constraint.

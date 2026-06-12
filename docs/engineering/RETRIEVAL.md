@@ -70,11 +70,18 @@ continues to run with the LIKE fallback.
 Retrieval evaluation can compare modes on the same dataset:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --compare-modes
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/sample_retrieval_source.txt --reset
+```
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes
 ```
 
 The comparison reports `hit@k`, MRR, no-result query count, active backend, and per-question HIT/MISS
-status for LIKE, FTS5 when available, and AUTO.
+status for LIKE, FTS5 when available, and AUTO. The seed command stores, ingests, and chunks the
+committed sample fixture against local SQLite/storage state without requiring the FastAPI server.
+The committed sample uses explicit anchor terms and should be read as a smoke test for retrieval
+plumbing, not as a benchmark showing one retrieval mode is better than another.
 
 ## Embedding Index Scaffolding
 

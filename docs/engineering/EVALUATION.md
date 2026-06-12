@@ -20,6 +20,8 @@ Retrieval datasets are JSON files with a top-level `cases` list:
       "expected_answer_terms": ["metadata"],
       "expected_document_filename": "sample_retrieval_source.txt",
       "expected_chunk_text_contains": ["SQLite for metadata"],
+      "difficulty": "easy",
+      "evidence_type": "method",
       "notes": "Optional notes"
     }
   ]
@@ -33,6 +35,8 @@ Supported case fields:
 - `expected_answer_terms`: optional string or list of strings, used when `expected_terms` is absent.
 - `expected_document_filename`: optional exact source filename match.
 - `expected_chunk_text_contains`: optional string or list of strings that overrides term matching for the chunk text.
+- `difficulty`: optional `easy`, `medium`, or `hard`.
+- `evidence_type`: optional `method`, `result`, `table`, `figure_caption`, `limitation`, or `definition`.
 - `notes`: optional evaluator notes.
 
 A case is a hit when a retrieved chunk matches the expected filename, if provided, and contains all
@@ -73,6 +77,36 @@ Then run:
 ```powershell
 python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --mode auto
 ```
+
+## Retrieval benchmark v1
+
+Milestone 17 adds a harder local benchmark:
+
+```text
+evals/fixtures/retrieval_benchmark_v1_source.txt
+evals/datasets/retrieval_benchmark_v1.json
+```
+
+The benchmark fixture is a synthetic scientific/technical report with abstract-like, methods,
+results, table-like, figure-caption-like, stable snapshot definition, limitations, and distractor
+sections. The dataset uses natural-language questions and expected evidence criteria. It includes
+difficulty and evidence-type labels so reports can be grouped later.
+
+Seed the benchmark fixture:
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/retrieval_benchmark_v1_source.txt --reset
+```
+
+Run the benchmark comparison:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes
+```
+
+This benchmark is intentionally not an anchor-term smoke test. It includes stale pilot results,
+similar figure captions, and repeated generic retrieval terms. Non-perfect scores are useful because
+they show where local lexical retrieval fails or retrieves plausible but wrong evidence.
 
 The script defaults to the same local app state used by the backend development setup:
 
@@ -148,6 +182,8 @@ Generated reports are written under `evals/runs/`, which is gitignored.
 - Metrics only check local lexical retrieval against expected filenames and chunk text terms.
 - The committed sample is a smoke test with explicit anchor terms, not a benchmark for retrieval
   quality.
+- `retrieval_benchmark_v1` is still small and synthetic; it is useful for regression checks and early
+  failure analysis, not for final thesis claims.
 - There is no LLM judge, answer faithfulness score, semantic similarity, reranking, or embedding recall yet.
 - A future benchmark should use harder natural-language questions, multiple documents, distractor
   chunks, expected evidence spans, and mode-specific analysis.

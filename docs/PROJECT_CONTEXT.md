@@ -292,6 +292,24 @@ Current limitation: fixture seeding writes to the configured local development d
 folder. Harder benchmark datasets with natural-language questions and distractor documents are future
 work. Generated SQLite files, uploads, artifacts, and eval run outputs remain ignored by Git.
 
+## Milestone 17 Progress: Retrieval Benchmark v1
+
+Implemented in feature branch `feature/m17-retrieval-benchmark-v1`:
+
+- Added `evals/fixtures/retrieval_benchmark_v1_source.txt`, a synthetic scientific/technical report
+  with methods, results, table-like rows, figure-caption-like text, limitations, and distractors.
+- Added `evals/datasets/retrieval_benchmark_v1.json` with natural-language questions, expected
+  evidence criteria, difficulty labels, and evidence-type labels.
+- Extended the local eval loader/report data to preserve optional `difficulty` and `evidence_type`
+  fields.
+- The benchmark can be seeded with
+  `python scripts/seed_eval_fixture.py --fixture evals/fixtures/retrieval_benchmark_v1_source.txt --reset`
+  and compared with
+  `python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes`.
+
+Current limitation: benchmark v1 is still synthetic and lexical. Non-perfect scores are expected and
+useful, but they are early failure-analysis signals rather than final thesis retrieval-quality claims.
+
 ## Budget Constraint
 
 PaperLens is developed under a zero-budget constraint.

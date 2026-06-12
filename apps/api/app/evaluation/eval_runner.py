@@ -14,6 +14,16 @@ from app.services.retrieval_service import (
     search_chunks,
 )
 
+ALLOWED_DIFFICULTIES = {"easy", "medium", "hard"}
+ALLOWED_EVIDENCE_TYPES = {
+    "method",
+    "result",
+    "table",
+    "figure_caption",
+    "limitation",
+    "definition",
+}
+
 
 @dataclass(frozen=True)
 class EvalCase:
@@ -24,6 +34,8 @@ class EvalCase:
     expected_document_filename: str | None = None
     expected_chunk_text_contains: list[str] | None = None
     notes: str | None = None
+    difficulty: str | None = None
+    evidence_type: str | None = None
 
     @property
     def required_chunk_terms(self) -> list[str]:
@@ -67,6 +79,8 @@ class CaseEvaluationResult:
     matched_chunk_id: str | None
     matched_document_filename: str | None
     notes: str | None
+    difficulty: str | None
+    evidence_type: str | None
     retrieved: list[RetrievedEvidence]
 
 
@@ -118,6 +132,18 @@ def _coerce_string_list(value: Any, field_name: str) -> list[str]:
     raise ValueError(f"{field_name} must be a string or list of strings.")
 
 
+def _coerce_optional_choice(value: Any, field_name: str, allowed: set[str]) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string.")
+    normalized = value.strip()
+    if normalized not in allowed:
+        allowed_values = ", ".join(sorted(allowed))
+        raise ValueError(f"{field_name} must be one of: {allowed_values}.")
+    return normalized
+
+
 def load_dataset(dataset_path: str | Path) -> EvalDataset:
     path = Path(dataset_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -160,6 +186,16 @@ def load_dataset(dataset_path: str | Path) -> EvalDataset:
                     "expected_chunk_text_contains",
                 ),
                 notes=notes,
+                difficulty=_coerce_optional_choice(
+                    raw_case.get("difficulty"),
+                    "difficulty",
+                    ALLOWED_DIFFICULTIES,
+                ),
+                evidence_type=_coerce_optional_choice(
+                    raw_case.get("evidence_type"),
+                    "evidence_type",
+                    ALLOWED_EVIDENCE_TYPES,
+                ),
             )
         )
 
@@ -213,6 +249,8 @@ def evaluate_case(eval_case: EvalCase, retrieved: list[RetrievedEvidence]) -> Ca
         matched_chunk_id=matched.chunk_id if matched else None,
         matched_document_filename=matched.document_filename if matched else None,
         notes=eval_case.notes,
+        difficulty=eval_case.difficulty,
+        evidence_type=eval_case.evidence_type,
         retrieved=retrieved,
     )
 
@@ -365,7 +403,16 @@ def format_report(report: EvaluationReport) -> str:
     for result in report.results:
         status = "HIT" if result.hit else "MISS"
         rank = f"rank {result.hit_rank}" if result.hit_rank is not None else "no match"
-        lines.append(f"- [{status}] {result.case_id}: {rank}, {result.result_count} result(s)")
+        metadata = ", ".join(
+            value
+            for value in (result.difficulty, result.evidence_type)
+            if value is not None
+        )
+        metadata_suffix = f" ({metadata})" if metadata else ""
+        lines.append(
+            f"- [{status}] {result.case_id}{metadata_suffix}: "
+            f"{rank}, {result.result_count} result(s)"
+        )
         if result.matched_document_filename and result.matched_chunk_id:
             lines.append(
                 f"  matched {result.matched_document_filename} chunk {result.matched_chunk_id[:8]}"

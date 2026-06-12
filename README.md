@@ -100,6 +100,24 @@ python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_s
 
 Generated reports under `evals/runs/` are ignored by Git.
 
+## Run retrieval benchmark v1
+
+Seed the harder benchmark fixture:
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/retrieval_benchmark_v1_source.txt --reset
+```
+
+Run LIKE, FTS5 when available, and AUTO against the benchmark:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes
+```
+
+`retrieval_benchmark_v1` uses natural-language questions, distractor paragraphs, table-like rows,
+figure-caption-like text, and limitations. It is intended to reveal local lexical retrieval failure
+modes. Non-perfect scores are expected and useful.
+
 ## Storage strategy
 
 Local development uses:

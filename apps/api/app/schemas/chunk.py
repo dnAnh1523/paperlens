@@ -61,4 +61,12 @@ class ChunkSearchResultRead(BaseModel):
 class ChunkSearchResponseRead(BaseModel):
     query: str
     total: int
+    mode: str = "auto"
+    backend: str = "like"
     results: list[ChunkSearchResultRead]
+
+
+class RetrievalStatusRead(BaseModel):
+    fts5_available: bool
+    default_mode: str
+    active_mode: str

@@ -19,6 +19,7 @@ def _evidence(
     return RetrievedEvidence(
         rank=rank,
         score=3.0,
+        backend="like",
         document_id="document-1",
         document_title="sample_retrieval_source",
         document_filename=filename,
@@ -117,9 +118,19 @@ def test_compute_summary_counts_hit_at_k_mrr_and_no_results() -> None:
         [],
     )
 
-    summary = compute_summary("unit_eval", [hit, miss], k=5)
+    summary = compute_summary(
+        "unit_eval",
+        [hit, miss],
+        k=5,
+        retrieval_mode="like",
+        retrieval_backend="like",
+        fts5_available=False,
+    )
 
     assert summary.total_cases == 2
+    assert summary.retrieval_mode == "like"
+    assert summary.retrieval_backend == "like"
+    assert summary.fts5_available is False
     assert summary.hits == 1
     assert summary.hit_at_k == 0.5
     assert summary.mean_reciprocal_rank == 0.5

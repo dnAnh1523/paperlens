@@ -2,7 +2,9 @@
 
 PaperLens is an applied CS thesis + production-style software project for evidence-type-aware multimodal RAG over scientific and technical papers.
 
-This scaffold uses a **local-native Windows development setup** instead of Docker.
+This scaffold uses a **zero-budget, local-native Windows development setup** instead of Docker. Local
+development does not require paid APIs, hosted vector databases, cloud services, model downloads, or
+API keys.
 
 ## Local development on Windows 11
 
@@ -62,14 +64,14 @@ Open `http://127.0.0.1:3000`.
 After uploading and preparing local documents, run a deterministic retrieval eval from the repository root:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode auto
 ```
 
 The sample dataset is designed for `evals/fixtures/sample_retrieval_source.txt`. Upload that file in
 the web UI, click `Prepare document`, then run the command above. JSON reports can be written with:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --write-json
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode like --write-json
 ```
 
 Generated reports under `evals/runs/` are ignored by Git.
@@ -80,15 +82,18 @@ Local development uses:
 
 - SQLite for metadata
 - local folders for document/page assets
-- Qdrant Client local mode for vector search experiments
+- SQLite LIKE/FTS5 lexical retrieval
+- deterministic fake/hash embeddings for pipeline scaffolding only
 
-Production can later use:
+Optional production work can later introduce managed services behind interfaces, but they are not part
+of the default zero-budget development setup:
 
 - PostgreSQL
-- S3 or MinIO
-- managed Qdrant or another vector database
+- object storage
+- a managed vector database
 - Redis worker queues
 
 ## Current status
 
-This is the first local-native scaffold. It intentionally avoids Docker to protect disk space on Windows development machines.
+PaperLens intentionally avoids Docker, paid APIs, hosted services, and model downloads in local
+development to stay usable on zero budget.

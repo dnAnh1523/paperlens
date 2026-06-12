@@ -12,5 +12,5 @@ def health_check() -> dict[str, str]:
         "app": "paperlens-api",
         "env": settings.app_env,
         "storage": settings.local_storage_root,
-        "vector_store": "qdrant-client-local-mode",
+        "retrieval": "sqlite-local",
     }

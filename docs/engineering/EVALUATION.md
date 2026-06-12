@@ -51,7 +51,7 @@ To run the sample as a hit-producing eval, first upload `evals/fixtures/sample_r
 through the web UI and click `Prepare document`. Then run from the repository root:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode auto
 ```
 
 The script defaults to the same local app state used by the backend development setup:
@@ -67,6 +67,9 @@ Environment variables `DATABASE_URL` and `LOCAL_STORAGE_ROOT` can override those
 
 The report prints:
 
+- `Mode`: requested retrieval mode, one of `auto`, `like`, or `fts5`.
+- `Backend`: actual retrieval backend used for results.
+- `SQLite FTS5 available`: whether the local SQLite build supports FTS5.
 - `hit@k`: fraction of cases where a matching chunk appears in the top `k` results.
 - `MRR`: mean reciprocal rank of the first matching chunk.
 - `No-result queries`: number of cases where retrieval returned no chunks.
@@ -74,22 +77,39 @@ The report prints:
 Override `k` with:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --limit 10
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --limit 10 --mode like
 ```
+
+Compare retrieval modes with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode auto
+```
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode like
+```
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode fts5
+```
+
+If SQLite FTS5 is unavailable, `--mode fts5` exits with a clear unavailable message. `--mode auto`
+falls back to LIKE.
 
 ## JSON reports
 
 Write a local JSON report with:
 
 ```powershell
-python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --write-json
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_eval.json --mode auto --write-json
 ```
 
 Generated reports are written under `evals/runs/`, which is gitignored.
 
 ## Limitations
 
-- Metrics only check lexical retrieval against expected filenames and chunk text terms.
+- Metrics only check local lexical retrieval against expected filenames and chunk text terms.
 - There is no LLM judge, answer faithfulness score, semantic similarity, reranking, or embedding recall yet.
 - The harness evaluates current local SQLite state, so documents must be uploaded, ingested, and chunked first.
 

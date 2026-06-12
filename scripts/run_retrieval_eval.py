@@ -37,6 +37,12 @@ def _parse_args() -> argparse.Namespace:
         help="Override retrieval depth k. Defaults to dataset default_k.",
     )
     parser.add_argument(
+        "--mode",
+        choices=("auto", "like", "fts5"),
+        default="auto",
+        help="Retrieval mode to evaluate. Auto uses FTS5 when available and falls back to LIKE.",
+    )
+    parser.add_argument(
         "--write-json",
         action="store_true",
         help="Write the report JSON to evals/runs/.",
@@ -65,6 +71,7 @@ def main() -> int:
         report_to_dict,
         run_retrieval_eval,
     )
+    from app.services.retrieval_service import RetrievalBackendUnavailableError
 
     args = _parse_args()
     dataset = load_dataset(args.dataset)
@@ -74,7 +81,10 @@ def main() -> int:
 
     init_db()
     with SessionLocal() as db:
-        report = run_retrieval_eval(db, dataset, limit=args.limit)
+        try:
+            report = run_retrieval_eval(db, dataset, limit=args.limit, mode=args.mode)
+        except RetrievalBackendUnavailableError as exc:
+            raise SystemExit(str(exc)) from exc
 
     print(format_report(report))
 

@@ -113,4 +113,4 @@ npm run build
 - PDF extraction is text-layer only; scanned PDFs need OCR later and are currently marked failed.
 - Chunking is character-based and paragraph-aware; it is not semantic chunking.
 - No page rendering, table extraction, figure extraction, equation parsing, embeddings, or vector indexing is implemented yet.
-- No Celery, Redis, Docker, MinIO, Qdrant server, or cloud service is required for this milestone.
+- No Celery, Redis, Docker, object-storage server, vector database server, or cloud service is required for this milestone.

@@ -10,7 +10,6 @@ dependencies = [
     "sqlalchemy==2.0.41",
     "alembic==1.16.4",
     "python-multipart==0.0.20",
-    "qdrant-client==1.14.3",
     "pymupdf==1.26.3",
     "pillow==11.3.0",
     "httpx==0.28.1",

@@ -7,7 +7,11 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.services.retrieval_service import search_chunks
+from app.services.retrieval_service import (
+    RetrievalBackendUnavailableError,
+    get_retrieval_backend_status,
+    search_chunks,
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +45,7 @@ class EvalDataset:
 class RetrievedEvidence:
     rank: int
     score: float
+    backend: str
     document_id: str
     document_title: str
     document_filename: str
@@ -69,6 +74,9 @@ class EvaluationSummary:
     dataset_name: str
     total_cases: int
     k: int
+    retrieval_mode: str
+    retrieval_backend: str
+    fts5_available: bool
     hits: int
     hit_at_k: float
     mean_reciprocal_rank: float
@@ -190,7 +198,14 @@ def evaluate_case(eval_case: EvalCase, retrieved: list[RetrievedEvidence]) -> Ca
     )
 
 
-def compute_summary(dataset_name: str, results: list[CaseEvaluationResult], k: int) -> EvaluationSummary:
+def compute_summary(
+    dataset_name: str,
+    results: list[CaseEvaluationResult],
+    k: int,
+    retrieval_mode: str = "auto",
+    retrieval_backend: str = "like",
+    fts5_available: bool = False,
+) -> EvaluationSummary:
     total_cases = len(results)
     hits = sum(1 for result in results if result.hit)
     reciprocal_rank_sum = sum(result.reciprocal_rank for result in results)
@@ -198,6 +213,9 @@ def compute_summary(dataset_name: str, results: list[CaseEvaluationResult], k: i
         dataset_name=dataset_name,
         total_cases=total_cases,
         k=k,
+        retrieval_mode=retrieval_mode,
+        retrieval_backend=retrieval_backend,
+        fts5_available=fts5_available,
         hits=hits,
         hit_at_k=hits / total_cases if total_cases else 0.0,
         mean_reciprocal_rank=reciprocal_rank_sum / total_cases if total_cases else 0.0,
@@ -205,16 +223,29 @@ def compute_summary(dataset_name: str, results: list[CaseEvaluationResult], k: i
     )
 
 
-def run_retrieval_eval(db: Session, dataset: EvalDataset, limit: int | None = None) -> EvaluationReport:
+def run_retrieval_eval(
+    db: Session,
+    dataset: EvalDataset,
+    limit: int | None = None,
+    mode: str = "auto",
+) -> EvaluationReport:
     k = limit or dataset.default_k
+    backend_status = get_retrieval_backend_status(db, mode=mode)
+    if mode == "fts5" and not backend_status.fts5_available:
+        raise RetrievalBackendUnavailableError("SQLite FTS5 is not available in this environment.")
+
     results: list[CaseEvaluationResult] = []
+    active_backend = backend_status.active_mode
 
     for eval_case in dataset.cases:
-        search_results = search_chunks(db, query=eval_case.question, limit=k)
+        search_results = search_chunks(db, query=eval_case.question, limit=k, mode=mode)
+        if search_results:
+            active_backend = search_results[0].backend
         retrieved = [
             RetrievedEvidence(
                 rank=result.rank,
                 score=result.score,
+                backend=result.backend,
                 document_id=result.document.id,
                 document_title=result.document.title,
                 document_filename=result.document.original_filename,
@@ -227,7 +258,14 @@ def run_retrieval_eval(db: Session, dataset: EvalDataset, limit: int | None = No
         results.append(evaluate_case(eval_case, retrieved))
 
     return EvaluationReport(
-        summary=compute_summary(dataset.name, results, k),
+        summary=compute_summary(
+            dataset.name,
+            results,
+            k,
+            retrieval_mode=mode,
+            retrieval_backend=active_backend,
+            fts5_available=backend_status.fts5_available,
+        ),
         results=results,
     )
 
@@ -240,6 +278,9 @@ def format_report(report: EvaluationReport) -> str:
     summary = report.summary
     lines = [
         f"Retrieval evaluation: {summary.dataset_name}",
+        f"Mode: {summary.retrieval_mode}",
+        f"Backend: {summary.retrieval_backend}",
+        f"SQLite FTS5 available: {summary.fts5_available}",
         f"Cases: {summary.total_cases}",
         f"hit@{summary.k}: {summary.hit_at_k:.3f} ({summary.hits}/{summary.total_cases})",
         f"MRR: {summary.mean_reciprocal_rank:.3f}",
@@ -265,7 +306,13 @@ def format_report(report: EvaluationReport) -> str:
 class EvalRunner:
     """Runs local deterministic retrieval evaluations."""
 
-    def run(self, eval_set_path: str, db: Session, limit: int | None = None) -> dict[str, Any]:
+    def run(
+        self,
+        eval_set_path: str,
+        db: Session,
+        limit: int | None = None,
+        mode: str = "auto",
+    ) -> dict[str, Any]:
         dataset = load_dataset(eval_set_path)
-        report = run_retrieval_eval(db, dataset, limit=limit)
+        report = run_retrieval_eval(db, dataset, limit=limit, mode=mode)
         return report_to_dict(report)

@@ -180,11 +180,27 @@ Deletes document metadata, the local stored file directory, and derived artifact
 ### Search chunks
 
 ```http
-GET /search?query=local%20retrieval&limit=10
+GET /search?query=local%20retrieval&limit=10&mode=auto
 ```
 
 Runs local lexical search across stored chunks and returns ranked matches with chunk text, nullable page
-metadata, and document metadata. `limit` must be between 1 and 50.
+metadata, and document metadata. `limit` must be between 1 and 50. `mode` can be `auto`, `like`, or
+`fts5`.
+
+- `auto`: use SQLite FTS5 when available and fall back to LIKE otherwise.
+- `like`: force the SQLite LIKE fallback.
+- `fts5`: force SQLite FTS5 and return `409 Conflict` if the local SQLite build does not support FTS5.
+
+Response payload includes `mode` and the active `backend` used for that search.
+
+### Get retrieval status
+
+```http
+GET /search/status?mode=auto
+```
+
+Returns whether SQLite FTS5 is available, the default retrieval mode, and the active backend that would
+be used for the requested mode.
 
 ## Conversations
 

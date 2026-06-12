@@ -1,36 +1,37 @@
 # PaperLens Architecture
 
-## Local-native development architecture
+## Local-Native Development Architecture
 
 ```text
 Next.js web app
-    ↓ HTTP
+    -> HTTP
 FastAPI backend
-    ↓
+    ->
 SQLite metadata database
 Local file storage
-Qdrant Client local vector store
-OpenAI or compatible LLM API later
+SQLite LIKE/FTS5 retrieval
+Fake/hash embeddings for local scaffolding
 ```
 
-## Evidence pipeline target
+Local development is zero-budget. It does not require Docker, paid APIs, hosted vector databases, model
+downloads, or API keys.
+
+## Evidence Pipeline Target
 
 ```text
 PDF paper
-    ↓
-page rendering + text extraction
-    ↓
-layout-aware evidence extraction
-    ↓
-text chunks + table assets + figure assets + equation assets
-    ↓
-embeddings and evidence-type metadata
-    ↓
-evidence-type-aware retrieval
-    ↓
-multimodal answer generation with citations
+    -> page-aware text extraction
+    -> source-grounded chunks
+    -> lexical retrieval baseline
+    -> evidence-preview chat with citations
 ```
 
-## Production architecture target
+Later research work may add layout-aware evidence extraction, real embeddings, multimodal reasoning,
+and optional production adapters. Those additions must stay behind interfaces and must not become local
+development requirements.
 
-Production may later use PostgreSQL, managed Qdrant, object storage, background workers, and CI/CD deployment. Docker is not required for local development.
+## Production Architecture Target
+
+Production may later use PostgreSQL, object storage, managed retrieval services, background workers,
+and CI/CD deployment behind optional interfaces. Docker and paid services are not required for local
+development.

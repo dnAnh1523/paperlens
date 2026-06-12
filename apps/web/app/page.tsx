@@ -17,7 +17,7 @@ export default function HomePage() {
           </div>
           <div className="card">
             <h2>Local dev stack</h2>
-            <p>FastAPI, Next.js, SQLite, local file storage, and Qdrant Client local mode.</p>
+            <p>FastAPI, Next.js, SQLite, local file storage, and zero-budget local retrieval.</p>
           </div>
           <div className="card">
             <h2>Research target</h2>

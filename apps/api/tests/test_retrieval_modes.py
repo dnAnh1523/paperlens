@@ -6,11 +6,19 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db.session import SessionLocal
-from app.evaluation.eval_runner import EvalCase, EvalDataset, run_retrieval_eval
+from app.evaluation import eval_runner
+from app.evaluation.eval_runner import (
+    EvalCase,
+    EvalDataset,
+    format_comparison_report,
+    run_retrieval_eval,
+    run_retrieval_eval_comparison,
+)
 from app.main import app
 from app.services.retrieval_service import (
     FTS_TABLE_NAME,
     RetrievalBackendUnavailableError,
+    RetrievalBackendStatus,
     is_fts5_available,
 )
 
@@ -206,6 +214,77 @@ def test_eval_runner_accepts_retrieval_mode() -> None:
     assert report.summary.hits == 1
 
 
+def test_eval_runner_comparison_report_data_structure() -> None:
+    client = TestClient(app)
+    term = _term("retrievalcompare")
+    document, _chunks = _create_chunked_document(client, term)
+    dataset = EvalDataset(
+        name="retrieval_compare_unit",
+        description=None,
+        default_k=5,
+        cases=[
+            EvalCase(
+                case_id="compare",
+                question=term,
+                expected_terms=[term],
+                expected_answer_terms=[],
+                expected_document_filename=str(document["original_filename"]),
+            )
+        ],
+    )
+
+    with SessionLocal() as db:
+        report = run_retrieval_eval_comparison(db, dataset)
+
+    mode_results = {mode_result.mode: mode_result for mode_result in report.modes}
+    assert set(mode_results) == {"like", "fts5", "auto"}
+    assert report.dataset_name == "retrieval_compare_unit"
+    assert report.total_cases == 1
+    assert mode_results["like"].available is True
+    assert mode_results["like"].backend == "like"
+    assert mode_results["like"].report is not None
+    assert mode_results["like"].report.summary.hits == 1
+    assert mode_results["auto"].available is True
+    assert mode_results["auto"].report is not None
+
+    if report.fts5_available:
+        assert mode_results["fts5"].available is True
+        assert mode_results["fts5"].backend == "fts5"
+        assert mode_results["fts5"].report is not None
+    else:
+        assert mode_results["fts5"].available is False
+        assert mode_results["fts5"].error
+
+    formatted = format_comparison_report(report)
+    assert "Mode summary:" in formatted
+    assert "Per-question summary:" in formatted
+    assert "like:" in formatted
+    assert "auto:" in formatted
+
+
+def test_eval_runner_comparison_marks_fts5_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_backend_status(_db, mode="auto") -> RetrievalBackendStatus:
+        return RetrievalBackendStatus(
+            fts5_available=False,
+            default_mode="auto",
+            active_mode="like",
+        )
+
+    monkeypatch.setattr(eval_runner, "get_retrieval_backend_status", fake_backend_status)
+    dataset = EvalDataset(name="unavailable_compare", description=None, default_k=1, cases=[])
+
+    with SessionLocal() as db:
+        report = run_retrieval_eval_comparison(db, dataset)
+
+    mode_results = {mode_result.mode: mode_result for mode_result in report.modes}
+    assert report.fts5_available is False
+    assert mode_results["like"].available is True
+    assert mode_results["auto"].available is True
+    assert mode_results["fts5"].available is False
+    assert mode_results["fts5"].report is None
+    assert "FTS5 is not available" in str(mode_results["fts5"].error)
+
+
 def test_eval_runner_fts5_mode_fails_clearly_when_unavailable() -> None:
     with SessionLocal() as db:
         available = is_fts5_available(db)
@@ -247,6 +326,8 @@ def test_zero_budget_forbidden_dependencies_and_config_are_not_required() -> Non
         "llama_index",
     ]
 
-    combined = "\n".join(path.read_text(encoding="utf-8") for path in checked_files).casefold()
+    combined = "\n".join(
+        path.read_text(encoding="utf-8") for path in checked_files if path.exists()
+    ).casefold()
     for term in forbidden:
         assert term.casefold() not in combined

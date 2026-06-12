@@ -43,6 +43,11 @@ def _parse_args() -> argparse.Namespace:
         help="Retrieval mode to evaluate. Auto uses FTS5 when available and falls back to LIKE.",
     )
     parser.add_argument(
+        "--compare-modes",
+        action="store_true",
+        help="Evaluate the dataset under LIKE, FTS5 when available, and AUTO.",
+    )
+    parser.add_argument(
         "--write-json",
         action="store_true",
         help="Write the report JSON to evals/runs/.",
@@ -66,10 +71,12 @@ def main() -> int:
 
     from app.db.session import SessionLocal, init_db
     from app.evaluation.eval_runner import (
+        format_comparison_report,
         format_report,
         load_dataset,
         report_to_dict,
         run_retrieval_eval,
+        run_retrieval_eval_comparison,
     )
     from app.services.retrieval_service import RetrievalBackendUnavailableError
 
@@ -81,15 +88,24 @@ def main() -> int:
 
     init_db()
     with SessionLocal() as db:
-        try:
-            report = run_retrieval_eval(db, dataset, limit=args.limit, mode=args.mode)
-        except RetrievalBackendUnavailableError as exc:
-            raise SystemExit(str(exc)) from exc
+        if args.compare_modes:
+            report = run_retrieval_eval_comparison(db, dataset, limit=args.limit)
+            formatted_report = format_comparison_report(report)
+            output_dataset_name = f"{dataset.name}_comparison"
+        else:
+            try:
+                report = run_retrieval_eval(db, dataset, limit=args.limit, mode=args.mode)
+            except RetrievalBackendUnavailableError as exc:
+                raise SystemExit(str(exc)) from exc
+            formatted_report = format_report(report)
+            output_dataset_name = dataset.name
 
-    print(format_report(report))
+    print(formatted_report)
 
     if args.write_json or args.output:
-        output_path = Path(args.output) if args.output else _default_output_path(repo_root, dataset.name)
+        output_path = (
+            Path(args.output) if args.output else _default_output_path(repo_root, output_dataset_name)
+        )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(json.dumps(report_to_dict(report), indent=2), encoding="utf-8")
         print(f"\nWrote JSON report: {output_path}")

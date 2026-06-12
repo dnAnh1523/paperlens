@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from app.evaluation.eval_runner import (
     EvalCase,
@@ -135,3 +136,10 @@ def test_compute_summary_counts_hit_at_k_mrr_and_no_results() -> None:
     assert summary.hit_at_k == 0.5
     assert summary.mean_reciprocal_rank == 0.5
     assert summary.no_result_queries == 1
+
+
+def test_eval_runs_output_directory_is_gitignored() -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    gitignore = (repo_root / ".gitignore").read_text(encoding="utf-8")
+
+    assert "evals/runs/" in gitignore

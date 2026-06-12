@@ -1,10 +1,11 @@
 # Chat
 
 Milestone 5 added the backend chat foundation for retrieval-grounded evidence previews. Milestone 20
-routes assistant answer text through an `AnswerProvider` interface. The current default workflow does
-not call an LLM, embedding model, vector database, cloud service, or paid API. Future optional LLM
-adapters may be added behind interfaces, but deterministic evidence previews must remain available
-without credentials or paid services.
+routes assistant answer text through an `AnswerProvider` interface. Milestone 21 adds provider status
+diagnostics for the backend API and web UI. The current default workflow does not call an LLM,
+embedding model, vector database, cloud service, or paid API. Future optional LLM adapters may be
+added behind interfaces, but deterministic evidence previews must remain available without credentials
+or paid services.
 
 ## Flow
 
@@ -53,6 +54,34 @@ free-tier APIs, local/open-source tools, local models, or free inference provide
 isolated behind the provider interface, disabled by default, documented clearly, and graceful when
 credentials, quota, binaries, or local resources are unavailable.
 
+## Provider diagnostics
+
+M21 adds a diagnostic endpoint:
+
+```http
+GET /answer-provider/status
+```
+
+The response includes:
+
+- `provider_name`
+- `provider_type`
+- `display_name`
+- `is_default`
+- `is_available`
+- `requires_api_key`
+- `requires_network`
+- `requires_model_download`
+- `supports_streaming`
+- `status_message`
+
+For the default deterministic provider, the endpoint reports available, no API key, no network, no
+model download, and no streaming support. Unsupported provider config returns an unavailable
+`unknown` provider status with a clear status message.
+
+The frontend chat workspace shows this same status in a small diagnostic panel. The panel is
+informational only; it does not change provider selection and does not add LLM synthesis.
+
 ## Frontend flow
 
 Milestone 6 adds a Next.js chat workspace to the home page:
@@ -63,6 +92,8 @@ Milestone 6 adds a Next.js chat workspace to the home page:
 4. The UI displays the stored user message and deterministic assistant message.
 5. Assistant evidence rows are shown as citation cards with rank, score, excerpt, document id, and chunk id.
 6. If no evidence is returned, the UI shows the backend no-evidence message.
+7. The UI shows answer provider diagnostics so users can see that the active provider is deterministic
+   evidence preview rather than LLM synthesis.
 
 Milestone 8 makes those evidence cards expandable. Opening a card loads source context from
 `GET /documents/{document_id}/chunks/{chunk_id}/context` and shows the selected chunk, source offsets,
@@ -125,5 +156,6 @@ chunk text and metadata.
 - Retrieval is lexical and uses `auto` mode: SQLite FTS5 when available, otherwise LIKE fallback.
 - No semantic retrieval, embedding-ranked retrieval, reranking, or LLM answer synthesis yet.
 - The only implemented answer provider is the deterministic evidence-preview provider.
+- Provider status UI is diagnostic only.
 - No PDF page viewer yet.
 - Conversation schema is created with the existing local `create_all()` startup behavior; Alembic migrations are still future work.

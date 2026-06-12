@@ -12,6 +12,7 @@ Local file storage
 SQLite LIKE/FTS5 retrieval
 Fake/hash embeddings for local scaffolding
 AnswerProvider interface
+Answer provider diagnostics
 ```
 
 The default local workflow is zero-budget-first. It does not require Docker, paid APIs, cloud
@@ -38,6 +39,10 @@ without LLM calls, API keys, model downloads, or paid services. Later research w
 layout-aware evidence extraction, real embeddings, optional LLM answer providers, multimodal
 reasoning, and optional deployment adapters. Those additions must stay behind interfaces and must not
 become local development or core-test requirements.
+
+Milestone 21 exposes provider diagnostics through `GET /answer-provider/status` and the web chat
+workspace. This status surface is read-only and diagnostic. It reports the configured provider,
+availability, and whether API keys, network access, model downloads, or streaming are required.
 
 ## Production Architecture Target
 

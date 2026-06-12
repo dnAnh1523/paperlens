@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
+  AnswerProviderStatus,
   ChatMessage,
   Conversation,
   EvidenceSourceChunk,
@@ -10,6 +11,7 @@ import {
   MessageEvidence,
   createConversation,
   deleteConversation,
+  fetchAnswerProviderStatus,
   fetchConversationMessages,
   fetchConversations,
   fetchMessageEvidenceSource,
@@ -57,6 +59,10 @@ function formatChunkLocation(chunk: EvidenceSourceChunk): string {
   return `Chunk ${chunkIndex}`;
 }
 
+function formatRequirement(value: boolean): string {
+  return value ? "Required" : "Not required";
+}
+
 function SourceContextChunk({
   chunk,
   label,
@@ -79,14 +85,17 @@ function SourceContextChunk({
 
 export function ChatWorkspace() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [providerStatus, setProviderStatus] = useState<AnswerProviderStatus | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
+  const [isLoadingProviderStatus, setIsLoadingProviderStatus] = useState(true);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [providerStatusError, setProviderStatusError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [evidencePreviews, setEvidencePreviews] = useState<Record<string, EvidencePreviewState>>({});
 
@@ -94,6 +103,16 @@ export function ChatWorkspace() {
     () => conversations.find((conversation) => conversation.conversation_id === selectedConversationId) ?? null,
     [conversations, selectedConversationId],
   );
+  const providerAvailabilityLabel = isLoadingProviderStatus
+    ? "Checking"
+    : providerStatus?.is_available
+      ? "Available"
+      : "Unavailable";
+  const providerAvailabilityClass = isLoadingProviderStatus
+    ? "providerAvailability checking"
+    : providerStatus?.is_available
+      ? "providerAvailability available"
+      : "providerAvailability unavailable";
 
   async function loadMessages(conversationId: string) {
     setIsLoadingMessages(true);
@@ -127,6 +146,28 @@ export function ChatWorkspace() {
   useEffect(() => {
     let isMounted = true;
 
+    async function loadProviderStatus() {
+      setIsLoadingProviderStatus(true);
+      setProviderStatusError(null);
+      try {
+        const nextProviderStatus = await fetchAnswerProviderStatus();
+        if (isMounted) {
+          setProviderStatus(nextProviderStatus);
+        }
+      } catch (loadError) {
+        if (isMounted) {
+          setProviderStatus(null);
+          setProviderStatusError(
+            loadError instanceof Error ? loadError.message : "Failed to load answer provider status.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingProviderStatus(false);
+        }
+      }
+    }
+
     async function load() {
       setIsLoadingConversations(true);
       setError(null);
@@ -155,6 +196,7 @@ export function ChatWorkspace() {
       }
     }
 
+    void loadProviderStatus();
     void load();
 
     return () => {
@@ -320,6 +362,50 @@ export function ChatWorkspace() {
           Chat API
         </div>
       </div>
+
+      <section className="providerStatusPanel" aria-label="Answer provider status">
+        <div className="providerStatusHeader">
+          <div>
+            <p className="eyebrow">Answer provider</p>
+            <h3>{providerStatus?.display_name ?? "Provider status"}</h3>
+          </div>
+          <span className={providerAvailabilityClass}>{providerAvailabilityLabel}</span>
+        </div>
+
+        {isLoadingProviderStatus ? <p className="providerStatusMessage">Checking provider status...</p> : null}
+        {providerStatusError ? <div className="alert error">{providerStatusError}</div> : null}
+        {providerStatus ? (
+          <>
+            <p className="providerStatusMessage">{providerStatus.status_message}</p>
+            <dl className="providerStatusGrid">
+              <div>
+                <dt>Provider</dt>
+                <dd>{providerStatus.provider_name}</dd>
+              </div>
+              <div>
+                <dt>Type</dt>
+                <dd>{providerStatus.provider_type}</dd>
+              </div>
+              <div>
+                <dt>API key</dt>
+                <dd>{formatRequirement(providerStatus.requires_api_key)}</dd>
+              </div>
+              <div>
+                <dt>Network</dt>
+                <dd>{formatRequirement(providerStatus.requires_network)}</dd>
+              </div>
+              <div>
+                <dt>Model download</dt>
+                <dd>{formatRequirement(providerStatus.requires_model_download)}</dd>
+              </div>
+              <div>
+                <dt>Streaming</dt>
+                <dd>{providerStatus.supports_streaming ? "Supported" : "Not supported"}</dd>
+              </div>
+            </dl>
+          </>
+        ) : null}
+      </section>
 
       {error ? <div className="alert error">{error}</div> : null}
 

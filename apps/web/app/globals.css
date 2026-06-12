@@ -75,7 +75,8 @@ p {
 .alert,
 .conversationPanel,
 .chatPanel,
-.messageComposer {
+.messageComposer,
+.providerStatusPanel {
   border: 1px solid rgba(148, 163, 184, 0.25);
   background: rgba(15, 23, 42, 0.72);
   border-radius: 16px;
@@ -351,6 +352,7 @@ dd {
 
 .conversationPanelHeader,
 .chatPanelHeader,
+.providerStatusHeader,
 .messageMeta,
 .evidenceHeader,
 .messageComposerControls {
@@ -361,8 +363,58 @@ dd {
 }
 
 .conversationPanelHeader h3,
-.chatPanelHeader h3 {
+.chatPanelHeader h3,
+.providerStatusHeader h3 {
   margin-bottom: 0;
+}
+
+.providerStatusPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+}
+
+.providerStatusHeader {
+  align-items: flex-start;
+}
+
+.providerStatusHeader .eyebrow {
+  margin-bottom: 6px;
+}
+
+.providerAvailability {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.providerAvailability.available {
+  background: rgba(52, 211, 153, 0.14);
+  color: #bbf7d0;
+}
+
+.providerAvailability.checking {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+}
+
+.providerAvailability.unavailable {
+  background: rgba(251, 113, 133, 0.14);
+  color: #fecdd3;
+}
+
+.providerStatusMessage {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+.providerStatusGrid {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  margin: 0;
 }
 
 .conversationPanelHeader button {
@@ -721,6 +773,7 @@ dd {
   .previewHeader,
   .conversationPanelHeader,
   .chatPanelHeader,
+  .providerStatusHeader,
   .evidenceSummary,
   .sourceStateLine,
   .sourcePreviewHeader,

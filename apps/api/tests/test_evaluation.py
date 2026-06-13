@@ -51,6 +51,7 @@ def test_load_dataset_supports_expected_terms_and_answer_terms(tmp_path) -> None
                         "question": "What stores metadata?",
                         "expected_terms": ["SQLite"],
                         "expected_document_filename": "sample_retrieval_source.txt",
+                        "scoped_document_filename": "sample_retrieval_source.txt",
                         "difficulty": "easy",
                         "evidence_type": "method",
                     },
@@ -71,6 +72,7 @@ def test_load_dataset_supports_expected_terms_and_answer_terms(tmp_path) -> None
     assert dataset.name == "unit_eval"
     assert dataset.default_k == 3
     assert dataset.cases[0].expected_terms == ["SQLite"]
+    assert dataset.cases[0].scoped_document_filename == "sample_retrieval_source.txt"
     assert dataset.cases[0].difficulty == "easy"
     assert dataset.cases[0].evidence_type == "method"
     assert dataset.cases[1].expected_answer_terms == ["selected retrieved chunk"]
@@ -290,7 +292,7 @@ def test_markdown_report_includes_metrics_questions_notes_and_limits() -> None:
     assert "| like | like | 1.000 | 1.000 | 0 | yes |" in markdown
     assert "| fts5 |  |  |  |  | no |" in markdown
     assert "## Per-Question Results" in markdown
-    assert "| storage | easy | method | HIT rank 1 | unavailable | What stores metadata? |" in markdown
+    assert "| storage | global | easy | method | HIT rank 1 | unavailable | What stores metadata? |" in markdown
     assert "## Interpretation Notes" in markdown
     assert "## Limitations" in markdown
 

@@ -6,8 +6,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.document import Document
 from app.services.retrieval_service import (
     RetrievalBackendUnavailableError,
     RetrievalMode,
@@ -33,6 +35,7 @@ class EvalCase:
     expected_terms: list[str]
     expected_answer_terms: list[str]
     expected_document_filename: str | None = None
+    scoped_document_filename: str | None = None
     expected_chunk_text_contains: list[str] | None = None
     notes: str | None = None
     difficulty: str | None = None
@@ -79,6 +82,7 @@ class CaseEvaluationResult:
     no_results: bool
     matched_chunk_id: str | None
     matched_document_filename: str | None
+    scoped_document_filename: str | None
     notes: str | None
     difficulty: str | None
     evidence_type: str | None
@@ -168,6 +172,10 @@ def load_dataset(dataset_path: str | Path) -> EvalDataset:
         if expected_document_filename is not None and not isinstance(expected_document_filename, str):
             raise ValueError(f"Case {index} expected_document_filename must be a string.")
 
+        scoped_document_filename = raw_case.get("scoped_document_filename")
+        if scoped_document_filename is not None and not isinstance(scoped_document_filename, str):
+            raise ValueError(f"Case {index} scoped_document_filename must be a string.")
+
         notes = raw_case.get("notes")
         if notes is not None and not isinstance(notes, str):
             raise ValueError(f"Case {index} notes must be a string.")
@@ -182,6 +190,7 @@ def load_dataset(dataset_path: str | Path) -> EvalDataset:
                     "expected_answer_terms",
                 ),
                 expected_document_filename=expected_document_filename,
+                scoped_document_filename=scoped_document_filename,
                 expected_chunk_text_contains=_coerce_string_list(
                     raw_case.get("expected_chunk_text_contains"),
                     "expected_chunk_text_contains",
@@ -249,6 +258,7 @@ def evaluate_case(eval_case: EvalCase, retrieved: list[RetrievedEvidence]) -> Ca
         no_results=len(retrieved) == 0,
         matched_chunk_id=matched.chunk_id if matched else None,
         matched_document_filename=matched.document_filename if matched else None,
+        scoped_document_filename=eval_case.scoped_document_filename,
         notes=eval_case.notes,
         difficulty=eval_case.difficulty,
         evidence_type=eval_case.evidence_type,
@@ -281,6 +291,19 @@ def compute_summary(
     )
 
 
+def _scoped_document_id_for_case(db: Session, eval_case: EvalCase) -> str | None:
+    if eval_case.scoped_document_filename is None:
+        return None
+
+    statement = (
+        select(Document.id)
+        .where(Document.original_filename == eval_case.scoped_document_filename)
+        .order_by(Document.created_at.desc())
+    )
+    document_id = db.scalars(statement).first()
+    return document_id or f"missing-scope:{eval_case.scoped_document_filename}"
+
+
 def run_retrieval_eval(
     db: Session,
     dataset: EvalDataset,
@@ -296,7 +319,13 @@ def run_retrieval_eval(
     active_backend = backend_status.active_mode
 
     for eval_case in dataset.cases:
-        search_results = search_chunks(db, query=eval_case.question, limit=k, mode=mode)
+        search_results = search_chunks(
+            db,
+            query=eval_case.question,
+            limit=k,
+            mode=mode,
+            document_id=_scoped_document_id_for_case(db, eval_case),
+        )
         if search_results:
             active_backend = search_results[0].backend
         retrieved = [
@@ -424,9 +453,10 @@ def format_report(report: EvaluationReport) -> str:
             if value is not None
         )
         metadata_suffix = f" ({metadata})" if metadata else ""
+        scope = result.scoped_document_filename or "global"
         lines.append(
             f"- [{status}] {result.case_id}{metadata_suffix}: "
-            f"{rank}, {result.result_count} result(s)"
+            f"{rank}, {result.result_count} result(s), scope={scope}"
         )
         if result.matched_document_filename and result.matched_chunk_id:
             lines.append(
@@ -485,7 +515,7 @@ def _summary_rows_for_report(
 
 def _case_results_for_report(
     report: EvaluationReport | EvaluationComparisonReport,
-) -> list[tuple[str, str, str | None, str | None, dict[str, str]]]:
+) -> list[tuple[str, str, str | None, str | None, str | None, dict[str, str]]]:
     if isinstance(report, EvaluationReport):
         return [
             (
@@ -493,13 +523,14 @@ def _case_results_for_report(
                 result.question,
                 result.difficulty,
                 result.evidence_type,
+                result.scoped_document_filename,
                 {report.summary.retrieval_mode: _case_status(result)},
             )
             for result in report.results
         ]
 
     case_order: list[str] = []
-    details_by_case: dict[str, tuple[str, str | None, str | None]] = {}
+    details_by_case: dict[str, tuple[str, str | None, str | None, str | None]] = {}
     statuses_by_case: dict[str, dict[str, str]] = {}
     for mode_result in report.modes:
         if not mode_result.available or mode_result.report is None:
@@ -511,6 +542,7 @@ def _case_results_for_report(
                     result.question,
                     result.difficulty,
                     result.evidence_type,
+                    result.scoped_document_filename,
                 )
             statuses_by_case.setdefault(result.case_id, {})[mode_result.mode] = _case_status(result)
 
@@ -520,6 +552,7 @@ def _case_results_for_report(
             details_by_case[case_id][0],
             details_by_case[case_id][1],
             details_by_case[case_id][2],
+            details_by_case[case_id][3],
             statuses_by_case.get(case_id, {}),
         )
         for case_id in case_order
@@ -583,22 +616,30 @@ def format_markdown_report(
 
     mode_headers = modes
     lines.append(
-        "| Case | Difficulty | Evidence Type | "
+        "| Case | Scope | Difficulty | Evidence Type | "
         + " | ".join(_markdown_cell(mode) for mode in mode_headers)
         + " | Question |"
     )
     lines.append(
-        "| --- | --- | --- | "
+        "| --- | --- | --- | --- | "
         + " | ".join("---" for _mode in mode_headers)
         + " | --- |"
     )
-    for case_id, question, difficulty, evidence_type, status_by_mode in _case_results_for_report(report):
+    for (
+        case_id,
+        question,
+        difficulty,
+        evidence_type,
+        scoped_document_filename,
+        status_by_mode,
+    ) in _case_results_for_report(report):
         lines.append(
             "| "
             + " | ".join(
                 _markdown_cell(value)
                 for value in (
                     case_id,
+                    scoped_document_filename or "global",
                     difficulty or "",
                     evidence_type or "",
                     *[status_by_mode.get(mode, "unavailable") for mode in mode_headers],
@@ -677,7 +718,17 @@ def format_comparison_report(report: EvaluationComparisonReport) -> str:
         lines.extend(["", "Per-question summary:"])
 
     for case_id in case_ids:
-        lines.append(f"- {case_id}")
+        scope = "global"
+        for mode_result in report.modes:
+            if mode_result.report is None:
+                continue
+            for result in mode_result.report.results:
+                if result.case_id == case_id:
+                    scope = result.scoped_document_filename or "global"
+                    break
+            if scope != "global":
+                break
+        lines.append(f"- {case_id} (scope: {scope})")
         for mode_result in report.modes:
             if not mode_result.available or mode_result.report is None:
                 lines.append(f"  {mode_result.mode}: unavailable")

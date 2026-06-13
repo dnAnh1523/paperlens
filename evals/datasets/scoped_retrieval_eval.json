@@ -1,0 +1,39 @@
+{
+  "name": "scoped_retrieval_eval",
+  "description": "Small regression eval for document-scoped retrieval. The alpha and beta fixtures share confusing terms so scoped cases verify the document filter and the unscoped case documents global behavior.",
+  "default_k": 1,
+  "cases": [
+    {
+      "id": "scoped-alpha-window",
+      "question": "What calibration window is used for the shared alloy membrane drift check?",
+      "expected_terms": ["twelve-minute calibration window", "alpha-source-only drift control"],
+      "expected_document_filename": "scoped_retrieval_alpha_source.txt",
+      "scoped_document_filename": "scoped_retrieval_alpha_source.txt",
+      "expected_chunk_text_contains": ["twelve-minute calibration window", "alpha-source-only drift control"],
+      "difficulty": "easy",
+      "evidence_type": "method",
+      "notes": "Scoped case: beta contains similar retrieval terms but must not be searched."
+    },
+    {
+      "id": "scoped-beta-window",
+      "question": "What calibration window is used for the shared alloy membrane drift check?",
+      "expected_terms": ["thirty-minute stabilization window", "beta-source-only drift control"],
+      "expected_document_filename": "scoped_retrieval_beta_source.txt",
+      "scoped_document_filename": "scoped_retrieval_beta_source.txt",
+      "expected_chunk_text_contains": ["thirty-minute stabilization window", "beta-source-only drift control"],
+      "difficulty": "easy",
+      "evidence_type": "method",
+      "notes": "Scoped case: alpha contains similar retrieval terms but must not be searched."
+    },
+    {
+      "id": "unscoped-ambiguous-window",
+      "question": "What calibration window is used for the shared alloy membrane drift check?",
+      "expected_terms": ["thirty-minute stabilization window", "beta-source-only drift control"],
+      "expected_document_filename": "scoped_retrieval_beta_source.txt",
+      "expected_chunk_text_contains": ["thirty-minute stabilization window", "beta-source-only drift control"],
+      "difficulty": "medium",
+      "evidence_type": "method",
+      "notes": "Unscoped contrast: the same query can retrieve either fixture at rank 1 because both documents intentionally share terms."
+    }
+  ]
+}

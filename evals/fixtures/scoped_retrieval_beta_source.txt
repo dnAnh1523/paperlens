@@ -1,0 +1,12 @@
+Title: Scoped Retrieval Beta Source
+
+This fixture is paired with scoped_retrieval_alpha_source.txt to test single-document retrieval scope.
+Both documents discuss the same shared alloy membrane, calibration drift, evidence cards, and local
+lexical retrieval, so an unscoped query can plausibly retrieve the wrong source.
+
+Beta method note: the beta protocol uses a thirty-minute stabilization window for the shared alloy
+membrane drift check. The beta procedure records the phrase beta-source-only drift control so the
+evaluation harness can verify that evidence came from this document and not from the alpha fixture.
+
+Beta limitation note: this is a small deterministic regression fixture, not a retrieval benchmark.
+It verifies that scoped retrieval applies the document filter before evidence is selected.

@@ -47,6 +47,8 @@ def _suggest_dataset_path(fixture_path: Path) -> str:
     suggested_by_fixture = {
         "sample_retrieval_source.txt": "evals/datasets/sample_retrieval_smoke.json",
         "retrieval_benchmark_v1_source.txt": "evals/datasets/retrieval_benchmark_v1.json",
+        "scoped_retrieval_alpha_source.txt": "evals/datasets/scoped_retrieval_eval.json",
+        "scoped_retrieval_beta_source.txt": "evals/datasets/scoped_retrieval_eval.json",
     }
     return suggested_by_fixture.get(fixture_path.name, "evals/datasets/sample_retrieval_smoke.json")
 

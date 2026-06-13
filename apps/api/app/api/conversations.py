@@ -97,7 +97,14 @@ def create_chat_conversation(
     payload: ConversationCreate | None = Body(default=None),
     db: Session = Depends(get_db),
 ) -> Conversation:
-    return create_conversation(db, title=payload.title if payload else None)
+    try:
+        return create_conversation(
+            db,
+            title=payload.title if payload else None,
+            scoped_document_id=payload.scoped_document_id if payload else None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.get("", response_model=list[ConversationRead])

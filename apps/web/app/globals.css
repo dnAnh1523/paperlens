@@ -510,6 +510,11 @@ dd {
   margin: 6px 0 0;
 }
 
+.conversationScopeLine {
+  color: #bfdbfe;
+  font-weight: 700;
+}
+
 .messageList {
   display: flex;
   flex-direction: column;

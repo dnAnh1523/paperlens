@@ -67,6 +67,12 @@ def init_db() -> None:
             "answer_fallback_reason": "TEXT",
         },
     )
+    _ensure_sqlite_columns(
+        "conversations",
+        {
+            "scoped_document_id": "VARCHAR(36)",
+        },
+    )
 
 
 def get_db() -> Generator[Session, None, None]:

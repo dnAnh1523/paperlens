@@ -1,7 +1,30 @@
+"use client";
+
+import { useState } from "react";
+
 import { ChatWorkspace } from "./components/ChatWorkspace";
 import { DocumentLibrary } from "./components/DocumentLibrary";
+import { PaperLensDocument } from "../lib/api";
+
+type ScopedChatRequest = {
+  requestKey: number;
+  documentId: string;
+  title: string;
+  originalFilename: string;
+};
 
 export default function HomePage() {
+  const [scopedChatRequest, setScopedChatRequest] = useState<ScopedChatRequest | null>(null);
+
+  function handleChatWithDocument(document: PaperLensDocument) {
+    setScopedChatRequest((currentRequest) => ({
+      requestKey: (currentRequest?.requestKey ?? 0) + 1,
+      documentId: document.id,
+      title: document.title,
+      originalFilename: document.original_filename,
+    }));
+  }
+
   return (
     <main className="page">
       <section className="hero">
@@ -26,8 +49,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      <ChatWorkspace />
-      <DocumentLibrary />
+      <ChatWorkspace scopedChatRequest={scopedChatRequest} />
+      <DocumentLibrary onChatWithDocument={handleChatWithDocument} />
     </main>
   );
 }

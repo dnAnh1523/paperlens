@@ -8,6 +8,15 @@ from app.models.conversation import MessageRole
 
 class ConversationCreate(BaseModel):
     title: str | None = Field(default=None, max_length=256)
+    scoped_document_id: str | None = None
+
+
+class ConversationScopedDocumentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    original_filename: str
 
 
 class ConversationRead(BaseModel):
@@ -15,6 +24,8 @@ class ConversationRead(BaseModel):
 
     conversation_id: str
     title: str
+    scoped_document_id: str | None = None
+    scoped_document: ConversationScopedDocumentRead | None = None
     created_at: datetime
     updated_at: datetime
 

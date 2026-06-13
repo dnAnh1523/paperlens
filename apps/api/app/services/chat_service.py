@@ -16,6 +16,7 @@ from app.generation.answer_service import (
     get_answer_provider,
 )
 from app.models.conversation import Conversation, Message, MessageEvidence, MessageRole
+from app.models.document import Document
 from app.services.retrieval_service import ChunkSearchResult, search_chunks
 
 DEFAULT_CONVERSATION_TITLE = "New conversation"
@@ -39,22 +40,46 @@ def _conversation_title_from_question(question: str) -> str:
     return normalized[:60]
 
 
-def create_conversation(db: Session, title: str | None = None) -> Conversation:
+def create_conversation(
+    db: Session,
+    title: str | None = None,
+    scoped_document_id: str | None = None,
+) -> Conversation:
     cleaned_title = title.strip() if title else DEFAULT_CONVERSATION_TITLE
-    conversation = Conversation(conversation_id=str(uuid4()), title=cleaned_title)
+    scoped_document = None
+    if scoped_document_id is not None:
+        scoped_document = db.get(Document, scoped_document_id)
+        if scoped_document is None:
+            raise ValueError("Scoped document not found.")
+
+    conversation = Conversation(
+        conversation_id=str(uuid4()),
+        title=cleaned_title,
+        scoped_document_id=scoped_document_id,
+    )
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
+    conversation.scoped_document = scoped_document
     return conversation
 
 
 def list_conversations(db: Session) -> list[Conversation]:
-    statement = select(Conversation).order_by(Conversation.updated_at.desc())
+    statement = (
+        select(Conversation)
+        .options(selectinload(Conversation.scoped_document))
+        .order_by(Conversation.updated_at.desc())
+    )
     return list(db.scalars(statement).all())
 
 
 def get_conversation(db: Session, conversation_id: str) -> Conversation | None:
-    return db.get(Conversation, conversation_id)
+    statement = (
+        select(Conversation)
+        .options(selectinload(Conversation.scoped_document))
+        .where(Conversation.conversation_id == conversation_id)
+    )
+    return db.scalars(statement).first()
 
 
 def get_message_evidence(
@@ -154,7 +179,12 @@ def post_user_message(
     answer_provider: AnswerProvider | None = None,
 ) -> ChatTurn:
     question = content.strip()
-    results = search_chunks(db, query=question, limit=evidence_limit)
+    results = search_chunks(
+        db,
+        query=question,
+        limit=evidence_limit,
+        document_id=conversation.scoped_document_id,
+    )
     provider = answer_provider or get_answer_provider()
     answer = provider.generate(
         AnswerRequest(

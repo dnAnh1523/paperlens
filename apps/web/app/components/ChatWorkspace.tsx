@@ -63,6 +63,22 @@ function formatRequirement(value: boolean): string {
   return value ? "Required" : "Not required";
 }
 
+function formatAnswerProvenance(message: ChatMessage): string | null {
+  const provenance = message.answer_provenance;
+  if (!provenance) {
+    return null;
+  }
+
+  const parts = [`Provider: ${provenance.provider_name}`];
+  if (provenance.model_name) {
+    parts.push(`model: ${provenance.model_name}`);
+  }
+  if (provenance.fallback_used) {
+    parts.push("fallback used");
+  }
+  return parts.join(" | ");
+}
+
 function SourceContextChunk({
   chunk,
   label,
@@ -484,6 +500,14 @@ export function ChatWorkspace() {
                   <strong>{getMessageLabel(message)}</strong>
                   <span>{formatDate(message.created_at)}</span>
                 </div>
+                {message.role === "assistant" && formatAnswerProvenance(message) ? (
+                  <div className="answerProvenanceLine">
+                    <span>{formatAnswerProvenance(message)}</span>
+                    {message.answer_provenance?.fallback_reason ? (
+                      <small>{message.answer_provenance.fallback_reason}</small>
+                    ) : null}
+                  </div>
+                ) : null}
                 <p>{message.content}</p>
 
                 {message.role === "assistant" && message.evidence.length > 0 ? (

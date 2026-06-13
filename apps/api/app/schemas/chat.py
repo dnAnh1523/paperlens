@@ -45,6 +45,20 @@ class MessageEvidenceRead(BaseModel):
     estimated_token_count_snapshot: int | None = None
 
 
+class AnswerProvenanceRead(BaseModel):
+    provider_name: str
+    provider_type: Literal[
+        "deterministic",
+        "free-tier-api",
+        "local-model",
+        "openai-compatible",
+        "unknown",
+    ]
+    model_name: str | None = None
+    fallback_used: bool = False
+    fallback_reason: str | None = None
+
+
 class MessageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -53,6 +67,7 @@ class MessageRead(BaseModel):
     role: MessageRole
     content: str
     created_at: datetime
+    answer_provenance: AnswerProvenanceRead | None = None
     evidence: list[MessageEvidenceRead] = Field(default_factory=list)
 
 

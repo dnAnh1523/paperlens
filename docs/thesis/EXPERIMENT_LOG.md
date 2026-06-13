@@ -175,3 +175,58 @@ Does not prove:
 - Results are immutable across local databases unless the same fixture is seeded and the same code is
   used.
 - Final thesis claims. The reports are intermediate experiment records.
+
+## Experiment 5: OpenAI-Compatible Provider Manual Smoke Validation
+
+Purpose:
+
+- Validate that the generic OpenAI-compatible `AnswerProvider` adapter can talk to one real
+  compatible endpoint when explicitly configured.
+- Confirm that provider diagnostics and the frontend status panel display the active provider without
+  exposing secrets.
+- Confirm that the chat UI still shows evidence cards and keeps document, conversation, and message
+  panels bounded during a provider-backed manual test.
+
+Endpoint used:
+
+- NVIDIA NIM was used as one OpenAI-compatible endpoint example.
+- Observed provider status:
+  - `provider_name`: `openai-compatible`
+  - `model_name`: `meta/llama-3.1-8b-instruct`
+  - `base_url_host`: `integrate.api.nvidia.com`
+  - status: available
+
+Observed behavior:
+
+- The backend started with `answer_provider=openai-compatible`.
+- `GET /answer-provider/status` reported the configured OpenAI-compatible provider and safe host.
+- The frontend provider status panel rendered the OpenAI-compatible provider state.
+- Chat returned an evidence-grounded answer draft from the configured provider.
+- PaperLens evidence cards still displayed under the assistant message.
+- Bounded document, conversation, and chat panels remained usable with many local documents and
+  conversations.
+- The upload form no longer showed the previous `Cannot read properties of null (reading 'elements')`
+  error during the manual flow.
+
+Measures:
+
+- Adapter compatibility with one configured OpenAI-compatible endpoint.
+- Diagnostics and UI behavior when a non-default provider is active.
+- Continued evidence-card rendering and bounded-panel usability during a manual provider smoke test.
+
+Does not prove:
+
+- Universal NVIDIA NIM support.
+- Availability of a specific NVIDIA-hosted model over time.
+- Provider quality, latency, quota stability, or benchmark performance.
+- That NVIDIA NIM is required, official, or first-class in PaperLens.
+- That the adapter works with every OpenAI-compatible endpoint.
+
+Notes:
+
+- No API key or secret is recorded in this log.
+- Provider quotas, model availability, rate limits, and endpoint behavior may vary.
+- This is a manual smoke validation of the generic OpenAI-compatible adapter, not a retrieval or answer
+  quality benchmark.
+- The deterministic evidence-preview provider remains the default and requires no API key, network,
+  cloud account, model download, or paid service.

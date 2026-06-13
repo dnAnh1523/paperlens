@@ -61,10 +61,20 @@ class AnswerRequest:
 
 
 @dataclass(frozen=True)
+class AnswerProvenance:
+    provider_name: str
+    provider_type: str
+    model_name: str | None
+    fallback_used: bool = False
+    fallback_reason: str | None = None
+
+
+@dataclass(frozen=True)
 class AnswerResult:
     content: str
     provider: str
     model: str
+    provenance: AnswerProvenance | None = None
 
 
 class AnswerProvider(Protocol):
@@ -96,6 +106,29 @@ def excerpt_text(text: str, max_chars: int = MAX_EXCERPT_CHARS) -> str:
     return f"{normalized[: max_chars - 3].rstrip()}..."
 
 
+def _answer_result(
+    *,
+    provider_name: str,
+    provider_type: str,
+    model_name: str,
+    content: str,
+    fallback_used: bool = False,
+    fallback_reason: str | None = None,
+) -> AnswerResult:
+    return AnswerResult(
+        provider=provider_name,
+        model=model_name,
+        content=content,
+        provenance=AnswerProvenance(
+            provider_name=provider_name,
+            provider_type=provider_type,
+            model_name=model_name,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
+        ),
+    )
+
+
 class DeterministicEvidenceAnswerProvider:
     provider_name = DEFAULT_ANSWER_PROVIDER
     model_name = DETERMINISTIC_ANSWER_MODEL
@@ -103,9 +136,10 @@ class DeterministicEvidenceAnswerProvider:
     def generate(self, request: AnswerRequest) -> AnswerResult:
         question = request.question.strip()
         if not request.evidence:
-            return AnswerResult(
-                provider=self.provider_name,
-                model=self.model_name,
+            return _answer_result(
+                provider_name=self.provider_name,
+                provider_type=AnswerProviderType.DETERMINISTIC.value,
+                model_name=self.model_name,
                 content=(
                     "Evidence preview: no relevant evidence was found for this question.\n\n"
                     "PaperLens has stored your question, but the local lexical search did not "
@@ -133,9 +167,10 @@ class DeterministicEvidenceAnswerProvider:
             lines.append(f"   {excerpt_text(evidence.text, max_chars=260)}")
         lines.append("")
         lines.append("No external LLM was called for this response.")
-        return AnswerResult(
-            provider=self.provider_name,
-            model=self.model_name,
+        return _answer_result(
+            provider_name=self.provider_name,
+            provider_type=AnswerProviderType.DETERMINISTIC.value,
+            model_name=self.model_name,
             content="\n".join(lines),
         )
 
@@ -224,6 +259,21 @@ def _deterministic_fallback_content(request: AnswerRequest, reason: str) -> str:
     )
 
 
+def _openai_fallback_result(
+    request: AnswerRequest,
+    model_name: str,
+    reason: str,
+) -> AnswerResult:
+    return _answer_result(
+        provider_name=OPENAI_COMPATIBLE_ANSWER_PROVIDER,
+        provider_type=AnswerProviderType.OPENAI_COMPATIBLE.value,
+        model_name=model_name,
+        fallback_used=True,
+        fallback_reason=reason,
+        content=_deterministic_fallback_content(request, reason),
+    )
+
+
 class OpenAICompatibleAnswerProvider:
     provider_name = OPENAI_COMPATIBLE_ANSWER_PROVIDER
 
@@ -276,54 +326,46 @@ class OpenAICompatibleAnswerProvider:
 
     def generate(self, request: AnswerRequest) -> AnswerResult:
         if not request.evidence:
-            return DeterministicEvidenceAnswerProvider().generate(request)
+            return _openai_fallback_result(
+                request,
+                self.model_name,
+                "No retrieved evidence was available for provider-backed synthesis.",
+            )
 
         config_error = _openai_config_error(self.config)
         if config_error is not None:
-            return AnswerResult(
-                provider=self.provider_name,
-                model=self.model_name,
-                content=_deterministic_fallback_content(request, config_error),
+            return _openai_fallback_result(
+                request,
+                self.model_name,
+                config_error,
             )
 
         try:
             response = self._post_payload(self._request_payload(request))
         except httpx.TimeoutException:
-            return AnswerResult(
-                provider=self.provider_name,
-                model=self.model_name,
-                content=_deterministic_fallback_content(
-                    request,
-                    "The provider request timed out.",
-                ),
+            return _openai_fallback_result(
+                request,
+                self.model_name,
+                "The provider request timed out.",
             )
         except httpx.RequestError:
-            return AnswerResult(
-                provider=self.provider_name,
-                model=self.model_name,
-                content=_deterministic_fallback_content(
-                    request,
-                    "The provider network request failed.",
-                ),
+            return _openai_fallback_result(
+                request,
+                self.model_name,
+                "The provider network request failed.",
             )
 
         if response.status_code == 429:
-            return AnswerResult(
-                provider=self.provider_name,
-                model=self.model_name,
-                content=_deterministic_fallback_content(
-                    request,
-                    "The provider reported a rate limit.",
-                ),
+            return _openai_fallback_result(
+                request,
+                self.model_name,
+                "The provider reported a rate limit.",
             )
         if response.status_code >= 400:
-            return AnswerResult(
-                provider=self.provider_name,
-                model=self.model_name,
-                content=_deterministic_fallback_content(
-                    request,
-                    f"The provider returned HTTP {response.status_code}.",
-                ),
+            return _openai_fallback_result(
+                request,
+                self.model_name,
+                f"The provider returned HTTP {response.status_code}.",
             )
 
         try:
@@ -336,18 +378,16 @@ class OpenAICompatibleAnswerProvider:
             content = None
 
         if not isinstance(content, str) or not content.strip():
-            return AnswerResult(
-                provider=self.provider_name,
-                model=self.model_name,
-                content=_deterministic_fallback_content(
-                    request,
-                    "The provider returned an invalid response.",
-                ),
+            return _openai_fallback_result(
+                request,
+                self.model_name,
+                "The provider returned an invalid response.",
             )
 
-        return AnswerResult(
-            provider=self.provider_name,
-            model=self.model_name,
+        return _answer_result(
+            provider_name=self.provider_name,
+            provider_type=AnswerProviderType.OPENAI_COMPATIBLE.value,
+            model_name=self.model_name,
             content=(
                 "Evidence-grounded answer draft from OpenAI-compatible provider:\n\n"
                 f"{content.strip()}\n\n"

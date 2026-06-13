@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from enum import StrEnum
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -56,12 +56,29 @@ class Message(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    answer_provider_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    answer_provider_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    answer_model_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    answer_fallback_used: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    answer_fallback_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
     evidence: Mapped[list["MessageEvidence"]] = relationship(
         back_populates="message",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def answer_provenance(self) -> dict[str, object] | None:
+        if self.answer_provider_name is None:
+            return None
+        return {
+            "provider_name": self.answer_provider_name,
+            "provider_type": self.answer_provider_type or "unknown",
+            "model_name": self.answer_model_name,
+            "fallback_used": bool(self.answer_fallback_used),
+            "fallback_reason": self.answer_fallback_reason,
+        }
 
 
 class MessageEvidence(Base):

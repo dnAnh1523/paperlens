@@ -38,6 +38,12 @@ def test_deterministic_provider_returns_stable_output() -> None:
     assert first == second
     assert first.provider == "deterministic-evidence"
     assert first.model == "evidence-preview-template-v1"
+    assert first.provenance is not None
+    assert first.provenance.provider_name == "deterministic-evidence"
+    assert first.provenance.provider_type == "deterministic"
+    assert first.provenance.model_name == "evidence-preview-template-v1"
+    assert first.provenance.fallback_used is False
+    assert first.provenance.fallback_reason is None
     assert "Evidence preview" in first.content
     assert "No external LLM" in first.content
     assert "chunk_id=chunk-1" in first.content
@@ -86,6 +92,14 @@ def test_openai_compatible_provider_missing_config_falls_back_to_deterministic_p
 
     assert result.provider == "openai-compatible"
     assert result.model == "unconfigured"
+    assert result.provenance is not None
+    assert result.provenance.provider_name == "openai-compatible"
+    assert result.provenance.provider_type == "openai-compatible"
+    assert result.provenance.model_name == "unconfigured"
+    assert result.provenance.fallback_used is True
+    assert result.provenance.fallback_reason == (
+        "llm_base_url is required for the OpenAI-compatible answer provider."
+    )
     assert "OpenAI-compatible answer provider is unavailable" in result.content
     assert "llm_base_url is required" in result.content
     assert "Falling back to the deterministic evidence preview" in result.content
@@ -136,6 +150,12 @@ def test_openai_compatible_provider_builds_chat_completions_payload() -> None:
     assert "Evidence-grounded answer draft" in result.content
     assert "Use Evidence 1 only." in result.content
     assert "test-secret" not in result.content
+    assert result.provenance is not None
+    assert result.provenance.provider_name == "openai-compatible"
+    assert result.provenance.provider_type == "openai-compatible"
+    assert result.provenance.model_name == "free-model"
+    assert result.provenance.fallback_used is False
+    assert result.provenance.fallback_reason is None
 
 
 @pytest.mark.parametrize(
@@ -169,6 +189,9 @@ def test_openai_compatible_provider_handles_provider_errors_gracefully(
     assert expected_text in result.content
     assert "Falling back to the deterministic evidence preview" in result.content
     assert "provider error" not in result.content
+    assert result.provenance is not None
+    assert result.provenance.fallback_used is True
+    assert expected_text in (result.provenance.fallback_reason or "")
 
 
 def test_openai_compatible_provider_handles_timeout_gracefully() -> None:
@@ -191,6 +214,9 @@ def test_openai_compatible_provider_handles_timeout_gracefully() -> None:
 
     assert "request timed out" in result.content
     assert "Falling back to the deterministic evidence preview" in result.content
+    assert result.provenance is not None
+    assert result.provenance.fallback_used is True
+    assert result.provenance.fallback_reason == "The provider request timed out."
 
 
 def test_openai_compatible_provider_handles_invalid_response_gracefully() -> None:
@@ -213,3 +239,6 @@ def test_openai_compatible_provider_handles_invalid_response_gracefully() -> Non
 
     assert "invalid response" in result.content
     assert "Falling back to the deterministic evidence preview" in result.content
+    assert result.provenance is not None
+    assert result.provenance.fallback_used is True
+    assert result.provenance.fallback_reason == "The provider returned an invalid response."

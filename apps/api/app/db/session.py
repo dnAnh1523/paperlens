@@ -57,6 +57,16 @@ def init_db() -> None:
             "estimated_token_count_snapshot": "INTEGER",
         },
     )
+    _ensure_sqlite_columns(
+        "messages",
+        {
+            "answer_provider_name": "VARCHAR(64)",
+            "answer_provider_type": "VARCHAR(64)",
+            "answer_model_name": "VARCHAR(256)",
+            "answer_fallback_used": "BOOLEAN",
+            "answer_fallback_reason": "TEXT",
+        },
+    )
 
 
 def get_db() -> Generator[Session, None, None]:

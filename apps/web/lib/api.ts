@@ -135,12 +135,21 @@ export type MessageEvidenceSource = {
   next_chunks: EvidenceSourceChunk[];
 };
 
+export type AnswerProvenance = {
+  provider_name: string;
+  provider_type: "deterministic" | "free-tier-api" | "local-model" | "openai-compatible" | "unknown";
+  model_name: string | null;
+  fallback_used: boolean;
+  fallback_reason: string | null;
+};
+
 export type ChatMessage = {
   message_id: string;
   conversation_id: string;
   role: MessageRole;
   content: string;
   created_at: string;
+  answer_provenance: AnswerProvenance | null;
   evidence: MessageEvidence[];
 };
 

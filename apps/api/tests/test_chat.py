@@ -123,6 +123,13 @@ def test_post_message_creates_user_assistant_and_evidence() -> None:
     assert turn["assistant_message"]["role"] == "assistant"
     assert "Evidence preview" in turn["assistant_message"]["content"]
     assert "No external LLM" in turn["assistant_message"]["content"]
+    assert turn["assistant_message"]["answer_provenance"] == {
+        "provider_name": "deterministic-evidence",
+        "provider_type": "deterministic",
+        "model_name": "evidence-preview-template-v1",
+        "fallback_used": False,
+        "fallback_reason": None,
+    }
     assert len(turn["assistant_message"]["evidence"]) >= 1
     evidence = turn["assistant_message"]["evidence"][0]
     assert evidence["document_id"] == document["id"]
@@ -179,6 +186,13 @@ def test_post_user_message_uses_answer_provider_interface() -> None:
     assert provider.request.evidence
     assert provider.request.evidence[0].document_id == document["id"]
     assert turn.assistant_message.content.startswith("Provider response with")
+    assert turn.assistant_message.answer_provenance == {
+        "provider_name": "recording-test",
+        "provider_type": "unknown",
+        "model_name": "recording-test-v1",
+        "fallback_used": False,
+        "fallback_reason": None,
+    }
     assert turn.assistant_message.evidence
     assert turn.assistant_message.evidence[0].document_id == document["id"]
 
@@ -219,8 +233,53 @@ def test_post_user_message_can_use_mocked_openai_compatible_provider() -> None:
 
     assert "Evidence-grounded answer draft" in turn.assistant_message.content
     assert "Evidence 1" in turn.assistant_message.content
+    assert turn.assistant_message.answer_provenance == {
+        "provider_name": "openai-compatible",
+        "provider_type": "openai-compatible",
+        "model_name": "free-model",
+        "fallback_used": False,
+        "fallback_reason": None,
+    }
     assert turn.assistant_message.evidence
     assert turn.assistant_message.evidence[0].document_id == document["id"]
+
+
+def test_post_user_message_records_openai_compatible_fallback_provenance() -> None:
+    client = TestClient(app)
+    term = _term("chatopenallback")
+    _create_chunked_document(client, term)
+    conversation = client.post("/conversations").json()
+    provider = OpenAICompatibleAnswerProvider(
+        OpenAICompatibleProviderConfig(
+            base_url=None,
+            api_key=None,
+            model=None,
+            timeout_seconds=5,
+            max_tokens=200,
+            temperature=0,
+        )
+    )
+
+    with SessionLocal() as db:
+        stored_conversation = db.get(Conversation, conversation["conversation_id"])
+        assert stored_conversation is not None
+
+        turn = post_user_message(
+            db,
+            conversation=stored_conversation,
+            content=term,
+            evidence_limit=3,
+            answer_provider=provider,
+        )
+
+    assert "Falling back to the deterministic evidence preview" in turn.assistant_message.content
+    assert turn.assistant_message.answer_provenance == {
+        "provider_name": "openai-compatible",
+        "provider_type": "openai-compatible",
+        "model_name": "unconfigured",
+        "fallback_used": True,
+        "fallback_reason": "llm_base_url is required for the OpenAI-compatible answer provider.",
+    }
 
 
 def test_post_message_evidence_includes_pdf_page_metadata() -> None:
@@ -353,6 +412,8 @@ def test_no_evidence_case_creates_clear_assistant_message() -> None:
     assert assistant["role"] == "assistant"
     assert assistant["evidence"] == []
     assert "no relevant evidence was found" in assistant["content"]
+    assert assistant["answer_provenance"]["provider_name"] == "deterministic-evidence"
+    assert assistant["answer_provenance"]["fallback_used"] is False
 
 
 def test_unsupported_answer_provider_returns_clear_api_error(
@@ -396,6 +457,8 @@ def test_reading_message_history_returns_user_and_assistant_messages() -> None:
     assert history_response.status_code == 200
     messages = history_response.json()
     assert [message["role"] for message in messages] == ["user", "assistant"]
+    assert messages[0]["answer_provenance"] is None
+    assert messages[1]["answer_provenance"]["provider_name"] == "deterministic-evidence"
     assert messages[1]["evidence"]
 
 

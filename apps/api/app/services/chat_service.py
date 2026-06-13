@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.generation.answer_service import (
     AnswerProvider,
+    AnswerProviderType,
+    AnswerProvenance,
     AnswerRequest,
     EvidenceInput,
     excerpt_text,
@@ -130,6 +132,20 @@ def _create_evidence_rows(
     ]
 
 
+def _answer_provenance(answer_provider: AnswerProvider, answer: object) -> AnswerProvenance:
+    provenance = getattr(answer, "provenance", None)
+    if isinstance(provenance, AnswerProvenance):
+        return provenance
+
+    provider_name = getattr(answer, "provider", answer_provider.provider_name)
+    model_name = getattr(answer, "model", answer_provider.model_name)
+    return AnswerProvenance(
+        provider_name=str(provider_name),
+        provider_type=AnswerProviderType.UNKNOWN.value,
+        model_name=str(model_name) if model_name is not None else None,
+    )
+
+
 def post_user_message(
     db: Session,
     conversation: Conversation,
@@ -146,6 +162,7 @@ def post_user_message(
             evidence=[_evidence_input_from_search_result(result) for result in results],
         )
     )
+    provenance = _answer_provenance(provider, answer)
     timestamp = _now()
     assistant_timestamp = timestamp + timedelta(microseconds=1)
 
@@ -166,6 +183,11 @@ def post_user_message(
         role=MessageRole.ASSISTANT,
         content=answer.content,
         created_at=assistant_timestamp,
+        answer_provider_name=provenance.provider_name,
+        answer_provider_type=provenance.provider_type,
+        answer_model_name=provenance.model_name,
+        answer_fallback_used=provenance.fallback_used,
+        answer_fallback_reason=provenance.fallback_reason,
     )
     evidence_rows = _create_evidence_rows(assistant_message, results)
 

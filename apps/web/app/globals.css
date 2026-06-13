@@ -548,6 +548,23 @@ dd {
   font-size: 0.82rem;
 }
 
+.answerProvenanceLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -2px 0 10px;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+}
+
+.answerProvenanceLine span {
+  font-weight: 700;
+}
+
+.answerProvenanceLine small {
+  color: #fcd34d;
+}
+
 .messageBubble p {
   margin-bottom: 0;
   color: #e5e7eb;

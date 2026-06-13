@@ -46,6 +46,9 @@ Search is exposed at:
 GET /search?query=...&limit=10&mode=auto
 ```
 
+Chat can also pass a single document filter when a conversation is scoped to one document. In that
+path, LIKE and FTS5 retrieval only search chunks whose `document_id` matches the conversation scope.
+
 Milestone 14 supports three local retrieval modes:
 
 - `auto`: use SQLite FTS5 when available, otherwise fall back to LIKE.
@@ -97,6 +100,23 @@ python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmar
 The benchmark includes methods, results, table-like rows, figure-caption-like text, limitations, and
 distractor paragraphs. It is designed to expose retrieval failures; non-perfect LIKE/FTS5/AUTO scores
 are expected and useful.
+
+Milestone 27 adds a scoped retrieval regression eval with two similar fixture documents:
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/scoped_retrieval_alpha_source.txt --reset
+```
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/scoped_retrieval_beta_source.txt --reset
+```
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/scoped_retrieval_eval.json --compare-modes
+```
+
+The scoped eval is not a quality benchmark. It verifies that document-scoped retrieval searches the
+selected document only, while unscoped retrieval remains global.
 
 ## Embedding Index Scaffolding
 

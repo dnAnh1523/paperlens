@@ -214,6 +214,96 @@ def test_eval_runner_accepts_retrieval_mode() -> None:
     assert report.summary.hits == 1
 
 
+def test_eval_runner_scoped_cases_filter_by_document_filename() -> None:
+    client = TestClient(app)
+    shared_term = _term("retrievalscope")
+    alpha_marker = _term("evalalpha")
+    beta_marker = _term("evalbeta")
+    alpha_document = _upload_text(
+        client,
+        f"{alpha_marker}.txt",
+        (
+            f"Scoped retrieval overlap term {shared_term}. "
+            f"Alpha document evidence marker {alpha_marker}. "
+            "Alpha uses a twelve-minute calibration window."
+        ),
+    )
+    beta_document = _upload_text(
+        client,
+        f"{beta_marker}.txt",
+        (
+            f"Scoped retrieval overlap term {shared_term}. "
+            f"Beta document evidence marker {beta_marker}. "
+            "Beta uses a thirty-minute stabilization window."
+        ),
+    )
+    for document in (alpha_document, beta_document):
+        chunk_response = client.post(f"/documents/{document['id']}/chunks")
+        assert chunk_response.status_code == 200
+
+    dataset = EvalDataset(
+        name="scoped_retrieval_unit",
+        description=None,
+        default_k=5,
+        cases=[
+            EvalCase(
+                case_id="alpha-scope",
+                question=shared_term,
+                expected_terms=[alpha_marker],
+                expected_answer_terms=[],
+                expected_document_filename=str(alpha_document["original_filename"]),
+                scoped_document_filename=str(alpha_document["original_filename"]),
+            ),
+            EvalCase(
+                case_id="beta-scope",
+                question=shared_term,
+                expected_terms=[beta_marker],
+                expected_answer_terms=[],
+                expected_document_filename=str(beta_document["original_filename"]),
+                scoped_document_filename=str(beta_document["original_filename"]),
+            ),
+        ],
+    )
+
+    with SessionLocal() as db:
+        report = run_retrieval_eval(db, dataset, mode="like")
+
+    assert report.summary.hits == 2
+    for result in report.results:
+        assert result.scoped_document_filename is not None
+        assert result.retrieved
+        assert {
+            evidence.document_filename for evidence in result.retrieved
+        } == {result.scoped_document_filename}
+
+
+def test_eval_runner_missing_scope_does_not_fall_back_to_global_results() -> None:
+    client = TestClient(app)
+    term = _term("retrievalmissingscope")
+    document, _chunks = _create_chunked_document(client, term)
+    dataset = EvalDataset(
+        name="missing_scope_unit",
+        description=None,
+        default_k=5,
+        cases=[
+            EvalCase(
+                case_id="missing-scope",
+                question=term,
+                expected_terms=[term],
+                expected_answer_terms=[],
+                expected_document_filename=str(document["original_filename"]),
+                scoped_document_filename="missing-scope-source.txt",
+            )
+        ],
+    )
+
+    with SessionLocal() as db:
+        report = run_retrieval_eval(db, dataset, mode="like")
+
+    assert report.summary.hits == 0
+    assert report.results[0].no_results is True
+
+
 def test_eval_runner_comparison_report_data_structure() -> None:
     client = TestClient(app)
     term = _term("retrievalcompare")

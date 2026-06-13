@@ -57,6 +57,20 @@ def _create_chunked_document(client: TestClient, term: str) -> dict[str, object]
     return document
 
 
+def _create_chunked_text_document(client: TestClient, filename: str, text: str) -> dict[str, object]:
+    response = client.post(
+        "/documents",
+        files={"file": (filename, text.encode("utf-8"), "text/plain")},
+    )
+    assert response.status_code == 201
+    document = response.json()
+
+    chunk_response = client.post(f"/documents/{document['id']}/chunks")
+    assert chunk_response.status_code == 200
+    assert len(chunk_response.json()) >= 1
+    return document
+
+
 def _create_chunked_pdf_document(client: TestClient, term: str) -> dict[str, object]:
     response = client.post(
         "/documents",
@@ -215,6 +229,48 @@ def test_scoped_conversation_retrieves_only_scoped_document() -> None:
     assert other_document["id"] not in {item["document_id"] for item in scoped_assistant["evidence"]}
 
 
+def test_scoped_conversation_with_overlapping_terms_excludes_other_document() -> None:
+    client = TestClient(app)
+    shared_term = _term("scopedshared")
+    alpha_marker = _term("alphascoped")
+    beta_marker = _term("betascoped")
+    alpha_document = _create_chunked_text_document(
+        client,
+        f"{alpha_marker}.txt",
+        (
+            f"The shared calibration study uses marker {shared_term}. "
+            f"The selected document reports alpha-only evidence {alpha_marker} "
+            "and a twelve-minute calibration window."
+        ),
+    )
+    beta_document = _create_chunked_text_document(
+        client,
+        f"{beta_marker}.txt",
+        (
+            f"The shared calibration study uses marker {shared_term}. "
+            f"The unrelated document reports beta-only evidence {beta_marker} "
+            "and a thirty-minute stabilization window."
+        ),
+    )
+    conversation = client.post(
+        "/conversations",
+        json={"title": "Scoped overlap", "scoped_document_id": alpha_document["id"]},
+    ).json()
+
+    response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": shared_term},
+        params={"limit": 5},
+    )
+
+    assert response.status_code == 200
+    evidence = response.json()["assistant_message"]["evidence"]
+    assert evidence
+    assert {item["document_id"] for item in evidence} == {alpha_document["id"]}
+    assert beta_document["id"] not in {item["document_id"] for item in evidence}
+    assert all(beta_marker not in item["excerpt"] for item in evidence)
+
+
 def test_unscoped_conversation_still_retrieves_across_documents() -> None:
     client = TestClient(app)
     scoped_term = _term("chatunscopedinside")
@@ -232,6 +288,36 @@ def test_unscoped_conversation_still_retrieves_across_documents() -> None:
     assistant = response.json()["assistant_message"]
     assert assistant["evidence"]
     assert assistant["evidence"][0]["document_id"] == other_document["id"]
+
+
+def test_unscoped_conversation_with_overlapping_terms_can_return_multiple_documents() -> None:
+    client = TestClient(app)
+    shared_term = _term("unscopedshared")
+    first_marker = _term("firstglobal")
+    second_marker = _term("secondglobal")
+    first_document = _create_chunked_text_document(
+        client,
+        f"{first_marker}.txt",
+        f"The global retrieval corpus includes shared marker {shared_term} and first marker {first_marker}.",
+    )
+    second_document = _create_chunked_text_document(
+        client,
+        f"{second_marker}.txt",
+        f"The global retrieval corpus includes shared marker {shared_term} and second marker {second_marker}.",
+    )
+    conversation = client.post("/conversations").json()
+
+    response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": shared_term},
+        params={"limit": 5},
+    )
+
+    assert response.status_code == 200
+    evidence_document_ids = {
+        item["document_id"] for item in response.json()["assistant_message"]["evidence"]
+    }
+    assert {first_document["id"], second_document["id"]}.issubset(evidence_document_ids)
 
 
 def test_post_user_message_uses_answer_provider_interface() -> None:

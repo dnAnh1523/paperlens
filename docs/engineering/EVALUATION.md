@@ -21,6 +21,7 @@ Retrieval datasets are JSON files with a top-level `cases` list:
       "expected_terms": ["SQLite", "local folders"],
       "expected_answer_terms": ["metadata"],
       "expected_document_filename": "sample_retrieval_source.txt",
+      "scoped_document_filename": "sample_retrieval_source.txt",
       "expected_chunk_text_contains": ["SQLite for metadata"],
       "difficulty": "easy",
       "evidence_type": "method",
@@ -36,6 +37,7 @@ Supported case fields:
 - `expected_terms`: optional string or list of strings expected in a retrieved evidence chunk.
 - `expected_answer_terms`: optional string or list of strings, used when `expected_terms` is absent.
 - `expected_document_filename`: optional exact source filename match.
+- `scoped_document_filename`: optional exact source filename used as a document filter before retrieval.
 - `expected_chunk_text_contains`: optional string or list of strings that overrides term matching for the chunk text.
 - `difficulty`: optional `easy`, `medium`, or `hard`.
 - `evidence_type`: optional `method`, `result`, `table`, `figure_caption`, `limitation`, or `definition`.
@@ -43,6 +45,10 @@ Supported case fields:
 
 A case is a hit when a retrieved chunk matches the expected filename, if provided, and contains all
 required expected chunk terms.
+
+When `scoped_document_filename` is present, the eval runner searches only chunks from the most recent
+local document row with that original filename. If the scoped document has not been seeded, the case
+returns no results instead of silently falling back to global retrieval.
 
 ## Sample smoke dataset
 
@@ -115,6 +121,40 @@ python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmar
 This benchmark is intentionally not an anchor-term smoke test. It includes stale pilot results,
 similar figure captions, and repeated generic retrieval terms. Non-perfect scores are useful because
 they show where local lexical retrieval fails or retrieves plausible but wrong evidence.
+
+## Scoped retrieval regression eval
+
+Milestone 27 adds a small scoped retrieval regression dataset:
+
+```text
+evals/fixtures/scoped_retrieval_alpha_source.txt
+evals/fixtures/scoped_retrieval_beta_source.txt
+evals/datasets/scoped_retrieval_eval.json
+```
+
+The alpha and beta fixtures intentionally share terms such as shared alloy membrane, calibration
+drift, evidence cards, and local lexical retrieval. Scoped cases use `scoped_document_filename` to
+prove retrieval is filtered to the selected source before evidence is evaluated. The unscoped contrast
+case uses the same query without a scope so reports show the difference between scoped and global
+retrieval behavior.
+
+Seed both scoped fixtures from the repository root:
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/scoped_retrieval_alpha_source.txt --reset
+```
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/scoped_retrieval_beta_source.txt --reset
+```
+
+Run the scoped comparison:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/scoped_retrieval_eval.json --compare-modes
+```
+
+This eval is a regression check for document filtering. It does not prove FTS5 is better than LIKE.
 
 The script defaults to the same local app state used by the backend development setup:
 
@@ -206,7 +246,7 @@ Markdown report files include:
 
 - run metadata with dataset path/name, timestamp, evaluated modes, and FTS5 availability.
 - metrics table with mode, backend, `hit@k`, MRR, no-result queries, and availability.
-- per-question result table with difficulty, evidence type, and mode-specific status.
+- per-question result table with document scope, difficulty, evidence type, and mode-specific status.
 - interpretation notes for reading local lexical retrieval metrics.
 - limitations for thesis-safe reporting.
 

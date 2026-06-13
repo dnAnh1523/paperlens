@@ -167,6 +167,8 @@ export function DocumentLibrary() {
 
   async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("paper-file") as HTMLInputElement | null;
     if (!selectedFile) {
       setError("Choose a file before uploading.");
       return;
@@ -178,7 +180,6 @@ export function DocumentLibrary() {
     try {
       const uploadedDocument = await uploadDocument(selectedFile);
       setSelectedFile(null);
-      const input = event.currentTarget.elements.namedItem("paper-file") as HTMLInputElement | null;
       if (input) {
         input.value = "";
       }

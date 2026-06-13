@@ -92,6 +92,41 @@ def test_create_conversation() -> None:
     assert conversation["title"] == "Milestone 5 chat"
     assert conversation["created_at"]
     assert conversation["updated_at"]
+    assert conversation["scoped_document_id"] is None
+    assert conversation["scoped_document"] is None
+
+
+def test_create_scoped_conversation_exposes_document_metadata() -> None:
+    client = TestClient(app)
+    term = _term("chatscopedcreate")
+    document = _create_chunked_document(client, term)
+
+    response = client.post(
+        "/conversations",
+        json={"title": "Scoped paper chat", "scoped_document_id": document["id"]},
+    )
+
+    assert response.status_code == 201
+    conversation = response.json()
+    assert conversation["title"] == "Scoped paper chat"
+    assert conversation["scoped_document_id"] == document["id"]
+    assert conversation["scoped_document"] == {
+        "id": document["id"],
+        "title": document["title"],
+        "original_filename": document["original_filename"],
+    }
+
+
+def test_create_scoped_conversation_rejects_missing_document() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/conversations",
+        json={"scoped_document_id": "missing-document-id"},
+    )
+
+    assert response.status_code == 404
+    assert "Scoped document not found" in response.json()["detail"]
 
 
 def test_list_conversations() -> None:
@@ -145,6 +180,58 @@ def test_post_message_creates_user_assistant_and_evidence() -> None:
     assert evidence["char_end_snapshot"] is not None
     assert evidence["estimated_token_count_snapshot"] is not None
     assert evidence["page_number"] is None
+
+
+def test_scoped_conversation_retrieves_only_scoped_document() -> None:
+    client = TestClient(app)
+    scoped_term = _term("chatscopedinside")
+    other_term = _term("chatscopedoutside")
+    scoped_document = _create_chunked_document(client, scoped_term)
+    other_document = _create_chunked_document(client, other_term)
+    conversation = client.post(
+        "/conversations",
+        json={"title": "Scoped chat", "scoped_document_id": scoped_document["id"]},
+    ).json()
+
+    other_response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": other_term},
+    )
+
+    assert other_response.status_code == 200
+    other_assistant = other_response.json()["assistant_message"]
+    assert other_assistant["evidence"] == []
+    assert "no relevant evidence was found" in other_assistant["content"]
+
+    scoped_response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": scoped_term},
+    )
+
+    assert scoped_response.status_code == 200
+    scoped_assistant = scoped_response.json()["assistant_message"]
+    assert scoped_assistant["evidence"]
+    assert {item["document_id"] for item in scoped_assistant["evidence"]} == {scoped_document["id"]}
+    assert other_document["id"] not in {item["document_id"] for item in scoped_assistant["evidence"]}
+
+
+def test_unscoped_conversation_still_retrieves_across_documents() -> None:
+    client = TestClient(app)
+    scoped_term = _term("chatunscopedinside")
+    other_term = _term("chatunscopedoutside")
+    _create_chunked_document(client, scoped_term)
+    other_document = _create_chunked_document(client, other_term)
+    conversation = client.post("/conversations").json()
+
+    response = client.post(
+        f"/conversations/{conversation['conversation_id']}/messages",
+        json={"content": other_term},
+    )
+
+    assert response.status_code == 200
+    assistant = response.json()["assistant_message"]
+    assert assistant["evidence"]
+    assert assistant["evidence"][0]["document_id"] == other_document["id"]
 
 
 def test_post_user_message_uses_answer_provider_interface() -> None:

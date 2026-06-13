@@ -70,7 +70,11 @@ function getDocumentKind(document: PaperLensDocument): string {
   return document.content_type;
 }
 
-export function DocumentLibrary() {
+type DocumentLibraryProps = {
+  onChatWithDocument?: (document: PaperLensDocument) => void;
+};
+
+export function DocumentLibrary({ onChatWithDocument }: DocumentLibraryProps) {
   const [apiState, setApiState] = useState<ApiState>("checking");
   const [documents, setDocuments] = useState<PaperLensDocument[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -362,6 +366,15 @@ export function DocumentLibrary() {
 
               <div className="workflowPanel">
                 <div className="workflowActions">
+                  {onChatWithDocument ? (
+                    <button
+                      type="button"
+                      className="secondaryButton"
+                      onClick={() => onChatWithDocument(document)}
+                    >
+                      Chat with this document
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="secondaryButton"

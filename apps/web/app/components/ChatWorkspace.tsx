@@ -25,6 +25,17 @@ type EvidencePreviewState = {
   error?: string;
 };
 
+type ScopedChatRequest = {
+  requestKey: number;
+  documentId: string;
+  title: string;
+  originalFilename: string;
+};
+
+type ChatWorkspaceProps = {
+  scopedChatRequest?: ScopedChatRequest | null;
+};
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -79,6 +90,13 @@ function formatAnswerProvenance(message: ChatMessage): string | null {
   return parts.join(" | ");
 }
 
+function getConversationScopeLabel(conversation: Conversation | null): string | null {
+  if (!conversation?.scoped_document_id) {
+    return null;
+  }
+  return conversation.scoped_document?.title ?? conversation.scoped_document?.original_filename ?? "unavailable document";
+}
+
 function SourceContextChunk({
   chunk,
   label,
@@ -99,7 +117,7 @@ function SourceContextChunk({
   );
 }
 
-export function ChatWorkspace() {
+export function ChatWorkspace({ scopedChatRequest = null }: ChatWorkspaceProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [providerStatus, setProviderStatus] = useState<AnswerProviderStatus | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -219,6 +237,68 @@ export function ChatWorkspace() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const request = scopedChatRequest;
+    if (!request) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function openScopedConversation(activeRequest: ScopedChatRequest) {
+      setIsCreating(true);
+      setError(null);
+      try {
+        const nextConversations = await fetchConversations();
+        if (!isMounted) {
+          return;
+        }
+
+        const existingConversation =
+          nextConversations.find(
+            (conversation) => conversation.scoped_document_id === activeRequest.documentId,
+          ) ?? null;
+
+        if (existingConversation) {
+          setConversations(nextConversations);
+          setSelectedConversationId(existingConversation.conversation_id);
+          const nextMessages = await fetchConversationMessages(existingConversation.conversation_id);
+          if (isMounted) {
+            setMessages(nextMessages);
+            setEvidencePreviews({});
+          }
+          return;
+        }
+
+        const conversation = await createConversation(
+          `Chat: ${activeRequest.title || activeRequest.originalFilename}`,
+          activeRequest.documentId,
+        );
+        if (!isMounted) {
+          return;
+        }
+        setConversations([conversation, ...nextConversations]);
+        setSelectedConversationId(conversation.conversation_id);
+        setMessages([]);
+        setEvidencePreviews({});
+      } catch (openError) {
+        if (isMounted) {
+          setError(openError instanceof Error ? openError.message : "Failed to open document chat.");
+        }
+      } finally {
+        if (isMounted) {
+          setIsCreating(false);
+        }
+      }
+    }
+
+    void openScopedConversation(request);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [scopedChatRequest]);
 
   async function handleCreateConversation() {
     setIsCreating(true);
@@ -363,6 +443,8 @@ export function ChatWorkspace() {
     }
   }
 
+  const selectedScopeLabel = getConversationScopeLabel(selectedConversation);
+
   return (
     <section className="workspace chatWorkspace" aria-label="PaperLens chat workspace">
       <div className="workspaceHeader">
@@ -463,6 +545,9 @@ export function ChatWorkspace() {
                 onClick={() => void handleSelectConversation(conversation.conversation_id)}
               >
                 <span>{conversation.title}</span>
+                {conversation.scoped_document_id ? (
+                  <small>Scoped to: {getConversationScopeLabel(conversation)}</small>
+                ) : null}
                 <small>{formatDate(conversation.updated_at)}</small>
               </button>
             ))}
@@ -474,6 +559,7 @@ export function ChatWorkspace() {
             <div>
               <h3>{selectedConversation?.title ?? "New conversation"}</h3>
               <p>{selectedConversation ? formatDate(selectedConversation.updated_at) : "Ready to start"}</p>
+              {selectedScopeLabel ? <p className="conversationScopeLine">Scoped to: {selectedScopeLabel}</p> : null}
             </div>
             <button
               type="button"

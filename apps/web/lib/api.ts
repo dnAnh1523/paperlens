@@ -98,6 +98,12 @@ export type EvidenceSourceChunk = {
 export type Conversation = {
   conversation_id: string;
   title: string;
+  scoped_document_id: string | null;
+  scoped_document: {
+    id: string;
+    title: string;
+    original_filename: string;
+  } | null;
   created_at: string;
   updated_at: string;
 };
@@ -298,11 +304,22 @@ export async function fetchMessageEvidenceSource(
   return parseJsonResponse<MessageEvidenceSource>(response);
 }
 
-export async function createConversation(title?: string): Promise<Conversation> {
+export async function createConversation(
+  title?: string,
+  scopedDocumentId?: string,
+): Promise<Conversation> {
+  const payload: { title?: string; scoped_document_id?: string } = {};
+  if (title) {
+    payload.title = title;
+  }
+  if (scopedDocumentId) {
+    payload.scoped_document_id = scopedDocumentId;
+  }
+  const hasPayload = Object.keys(payload).length > 0;
   const response = await fetch(`${API_BASE_URL}/conversations`, {
     method: "POST",
-    headers: title ? { "Content-Type": "application/json" } : undefined,
-    body: title ? JSON.stringify({ title }) : undefined,
+    headers: hasPayload ? { "Content-Type": "application/json" } : undefined,
+    body: hasPayload ? JSON.stringify(payload) : undefined,
   });
   return parseJsonResponse<Conversation>(response);
 }

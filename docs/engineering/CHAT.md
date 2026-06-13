@@ -83,6 +83,25 @@ Groq, NVIDIA NIM, other OpenAI-compatible free-tier APIs, local OpenAI-compatibl
 proxy/router endpoints are configuration examples only. None is hardcoded, official, or required.
 Unsupported provider names still fail clearly during provider selection.
 
+### Manual OpenAI-compatible smoke validation
+
+A manual validation run confirmed the generic OpenAI-compatible adapter with NVIDIA NIM as one
+compatible endpoint example:
+
+- backend configured with `answer_provider=openai-compatible`
+- `provider_name`: `openai-compatible`
+- `model_name`: `meta/llama-3.1-8b-instruct`
+- `base_url_host`: `integrate.api.nvidia.com`
+- provider status: available
+- frontend provider status panel rendered the active provider
+- chat returned an evidence-grounded answer draft from the configured provider
+- PaperLens evidence cards still displayed under the assistant response
+
+This validation supports adapter compatibility with one endpoint. It is not a benchmark, does not
+claim universal NVIDIA NIM support, and does not make NVIDIA NIM required or first-class. Provider
+quotas, model availability, rate limits, and endpoint behavior may vary. No API key or secret is
+recorded in documentation. The deterministic evidence-preview provider remains the default.
+
 ## Provider diagnostics
 
 M21 adds a diagnostic endpoint:

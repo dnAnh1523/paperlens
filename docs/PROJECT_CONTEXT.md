@@ -26,13 +26,14 @@ Scientific and technical papers contain important evidence across text, tables, 
 - Retrieval: SQLite LIKE fallback and SQLite FTS5 when available
 - Embeddings: deterministic fake/hash vectors for pipeline scaffolding only
 - Answer generation: provider interface with deterministic evidence-preview provider as the default,
-  provider status diagnostics, and an optional OpenAI-compatible adapter disabled by default
+  provider status diagnostics, an optional OpenAI-compatible adapter disabled by default, and one
+  manual adapter smoke validation recorded with NVIDIA NIM as an endpoint example
 - Evaluation: local fixture seeding, smoke test, synthetic benchmark v1, and JSON/Markdown reports
 - Optional adapters later: free-tier APIs, open-source OCR, local models, free deployment tiers,
   OpenAI-compatible free-provider proxies, PostgreSQL, object storage, and managed services behind
   interfaces
 
-## Current product state after Milestone 22
+## Current product state after Milestone 24
 
 PaperLens can run a complete local, non-LLM evidence-preview workflow:
 
@@ -50,11 +51,16 @@ PaperLens can run a complete local, non-LLM evidence-preview workflow:
 11. View the configured answer provider status in the backend API and web chat workspace.
 12. Optionally configure a generic OpenAI-compatible answer provider for evidence-grounded answer
     drafts without changing the default deterministic provider.
+13. Use bounded document, conversation, and chat panels so long lists do not push active chat content
+    out of reach.
+14. Refer to one manual smoke-validation record showing the generic OpenAI-compatible adapter working
+    with NVIDIA NIM as one endpoint example.
 
 The default system is still not a full multimodal RAG system. It has no required LLM answer synthesis,
 no real embeddings, no vector database, no OCR, no rendered PDF/page viewer, no table/figure/equation
 extraction, and no multimodal vision model integration. The optional OpenAI-compatible adapter is
-generic, disabled by default, and not tied to a paid provider.
+generic, disabled by default, and not tied to a paid provider. The NVIDIA NIM validation is a manual
+smoke test of one compatible endpoint, not a benchmark or universal support claim.
 
 ## Why Docker was removed from local development
 
@@ -78,7 +84,8 @@ Docker image pulls and WSL2 Docker storage consumed too much disk space on the W
 - AnswerProvider interface with deterministic local evidence-preview provider as the default.
 - Answer provider status API and frontend diagnostic panel.
 - Optional OpenAI-compatible answer provider adapter for future free-tier, local server, or proxy
-  experiments.
+  experiments, plus a manual smoke-validation record using NVIDIA NIM as one compatible endpoint
+  example.
 - Source context preview and stable evidence snapshot fallback.
 - Fake/hash embedding indexing scaffold that does not affect retrieval ranking.
 - Local retrieval evaluation harness, fixture seeding, benchmark v1, and JSON/Markdown reports.
@@ -439,6 +446,36 @@ Implemented in feature branch `feature/m22-openai-compatible-provider`:
 Current limitation: M22 does not make any provider official or required. Groq, NVIDIA NIM, other
 OpenAI-compatible free-tier APIs, local OpenAI-compatible servers, and custom proxy/router endpoints
 are configuration examples only. No real provider call happens in tests.
+
+## Milestone 23 Progress: Bounded UI Panels
+
+Implemented in feature branch `feature/m23-bounded-ui-panels`:
+
+- Bounded document, conversation, and chat message panels so long local document libraries and long
+  chat histories scroll inside their own regions.
+- Kept the chat composer reachable while message history scrolls.
+- Preserved upload, prepare, delete, chat, provider status, and evidence-card expansion behavior.
+- Fixed a frontend upload form issue where the form event target could be null after an async upload.
+
+Current limitation: the frontend still loads document and conversation lists client-side. This
+milestone did not add virtualization or backend pagination.
+
+## Milestone 24 Progress: OpenAI-Compatible Provider Manual Validation
+
+Implemented in feature branch `feature/m24-provider-validation-log`:
+
+- Recorded a manual smoke validation of the generic OpenAI-compatible `AnswerProvider` adapter.
+- NVIDIA NIM was used as one compatible endpoint example with
+  `model_name: meta/llama-3.1-8b-instruct` and `base_url_host: integrate.api.nvidia.com`.
+- Provider diagnostics reported `provider_name: openai-compatible` and an available status.
+- The frontend provider status panel worked, chat returned an evidence-grounded answer draft, and
+  evidence cards still displayed.
+- The bounded UI panels from M23 remained usable during manual validation.
+- No API key or secret was recorded.
+
+Current limitation: this is a manual smoke validation only. It does not make NVIDIA NIM required,
+official, first-class, or universally supported. Provider quotas, model availability, and endpoint
+behavior may vary. The deterministic evidence-preview provider remains the default.
 
 ## Zero-Budget-First Policy
 

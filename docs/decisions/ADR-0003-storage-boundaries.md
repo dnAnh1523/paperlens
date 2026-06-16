@@ -2,14 +2,16 @@
 
 ## Status
 
-Accepted
+Accepted, amended by Milestone 14 for zero-budget-first local development.
 
 ## Decision
 
-Use PostgreSQL for canonical metadata, Qdrant for vectors, and MinIO/S3 for large binary artifacts.
+For current local development, use SQLite for metadata, SQLite lexical retrieval indexes, and local
+folders for large binary artifacts. Production storage adapters can be introduced later behind optional
+interfaces.
 
 ## Consequences
 
-- Large images and PDFs are not stored in PostgreSQL.
-- Qdrant is treated as an index, not the source of truth.
+- Large images and PDFs are not stored in SQLite.
+- SQLite FTS rows and fake embedding rows are treated as indexes, not the source of truth.
 - Metadata consistency must be maintained during indexing and deletion.

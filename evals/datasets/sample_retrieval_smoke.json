@@ -1,0 +1,31 @@
+{
+  "name": "sample_retrieval_smoke",
+  "description": "Tiny deterministic smoke test for fixture seeding, chunk indexing, and retrieval plumbing. Uses explicit anchor terms and is not a retrieval-quality benchmark.",
+  "default_k": 5,
+  "cases": [
+    {
+      "id": "local-stack",
+      "question": "localstackeval",
+      "expected_terms": ["SQLite", "local folders"],
+      "expected_document_filename": "sample_retrieval_source.txt",
+      "expected_chunk_text_contains": ["SQLite for metadata", "local folders"],
+      "notes": "Checks that retrieval finds the local-native storage description."
+    },
+    {
+      "id": "chunking-artifacts",
+      "question": "chunkingeval",
+      "expected_terms": ["deterministic", "character offsets", "estimated token counts"],
+      "expected_document_filename": "sample_retrieval_source.txt",
+      "expected_chunk_text_contains": ["deterministic source-grounded chunks", "character offsets"],
+      "notes": "Checks chunking evidence, not final answer generation."
+    },
+    {
+      "id": "source-preview",
+      "question": "sourceprevieweval",
+      "expected_answer_terms": ["selected retrieved chunk", "previous and next chunks"],
+      "expected_document_filename": "sample_retrieval_source.txt",
+      "expected_chunk_text_contains": ["selected retrieved chunk", "previous and next chunks"],
+      "notes": "Checks Milestone 8 source context behavior."
+    }
+  ]
+}

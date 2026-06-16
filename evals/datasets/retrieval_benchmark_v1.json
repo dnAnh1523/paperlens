@@ -1,0 +1,107 @@
+{
+  "name": "retrieval_benchmark_v1",
+  "description": "Small natural-language retrieval benchmark with distractors for local LIKE/FTS5/AUTO comparison. Non-perfect scores are expected and useful.",
+  "default_k": 5,
+  "cases": [
+    {
+      "id": "excluded-scanned-pdfs",
+      "question": "How many scanned PDFs were excluded from the CryoSpan benchmark and why?",
+      "expected_terms": ["11 scanned PDFs", "no usable text layer"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["11 scanned PDFs", "no usable text layer", "OCR was not implemented"],
+      "difficulty": "easy",
+      "evidence_type": "method",
+      "notes": "Targets the final methods section, not the general OCR limitation paragraph."
+    },
+    {
+      "id": "final-chunking-policy",
+      "question": "What chunk size and overlap did the final CryoSpan benchmark use?",
+      "expected_terms": ["1500 characters", "200 character overlap"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["1500 characters", "200 character overlap"],
+      "difficulty": "hard",
+      "evidence_type": "method",
+      "notes": "Distractor-sensitive because the pilot note mentions abandoned 900/100 chunk settings."
+    },
+    {
+      "id": "measurement-normalization",
+      "question": "Which scientific measurement strings did the normalization pass preserve?",
+      "expected_terms": ["10^-3 A cm^-2", "0.25 mV s^-1"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["10^-3 A cm^-2", "0.25 mV s^-1"],
+      "difficulty": "medium",
+      "evidence_type": "method",
+      "notes": "Checks technical notation preservation in extracted text."
+    },
+    {
+      "id": "final-hit-rate-comparison",
+      "question": "Which retrieval mode had the higher final hit at five, and what were the values?",
+      "expected_terms": ["FTS5 hit@5 was 0.71", "LIKE hit@5 was 0.58"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["FTS5 hit@5 was 0.71", "LIKE hit@5 was 0.58"],
+      "difficulty": "medium",
+      "evidence_type": "result",
+      "notes": "Should retrieve final results rather than stale pilot metrics."
+    },
+    {
+      "id": "no-result-counts",
+      "question": "How many no-result queries did LIKE and FTS5 produce in the final benchmark?",
+      "expected_terms": ["LIKE produced 5 no-result queries", "FTS5 produced 3 no-result queries"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["LIKE produced 5 no-result queries", "FTS5 produced 3 no-result queries"],
+      "difficulty": "hard",
+      "evidence_type": "result",
+      "notes": "Distractor-sensitive because another memo reports a different no-result count."
+    },
+    {
+      "id": "lowest-evidence-category",
+      "question": "Which evidence category had the lowest recall in Table 1?",
+      "expected_terms": ["figure-caption cases", "4 of 6"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["figure-caption cases", "4 of 6", "lowest recall category"],
+      "difficulty": "medium",
+      "evidence_type": "table",
+      "notes": "Targets table-like rows and the sentence interpreting them."
+    },
+    {
+      "id": "figure-three-false-positives",
+      "question": "What did Figure 3 say caused many false positives?",
+      "expected_terms": ["9 of 23 false positives", "boilerplate safety disclaimers"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["Nine of 23 false positives", "boilerplate safety disclaimers"],
+      "difficulty": "medium",
+      "evidence_type": "figure_caption",
+      "notes": "Distractor-sensitive because Figure 2 also discusses retrieval errors."
+    },
+    {
+      "id": "snapshot-fields",
+      "question": "What source details does a stable evidence snapshot store?",
+      "expected_terms": ["full chunk text", "source filename", "character offsets"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["full chunk text", "source filename", "character offsets"],
+      "difficulty": "easy",
+      "evidence_type": "definition",
+      "notes": "Checks the definition paragraph for stable evidence snapshots."
+    },
+    {
+      "id": "table-heavy-limitation",
+      "question": "Why are table-heavy questions still fragile in benchmark v1?",
+      "expected_terms": ["table structure was flattened", "column headers"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["table structure was flattened", "column headers"],
+      "difficulty": "medium",
+      "evidence_type": "limitation",
+      "notes": "Targets the limitations section rather than the Table 1 result rows."
+    },
+    {
+      "id": "stale-pilot-like-score",
+      "question": "Which pilot LIKE hit at five value should not be used as the final score?",
+      "expected_terms": ["0.62", "not the final reported score"],
+      "expected_document_filename": "retrieval_benchmark_v1_source.txt",
+      "expected_chunk_text_contains": ["LIKE hit@5 of 0.62", "not the final reported score"],
+      "difficulty": "hard",
+      "evidence_type": "result",
+      "notes": "Intentionally asks about a distractor note so reports can expose whether retrieval finds the stale-metric caveat."
+    }
+  ]
+}

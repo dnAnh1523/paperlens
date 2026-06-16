@@ -1,0 +1,92 @@
+# Frontend Design
+
+PaperLens uses Next.js for the local development web interface. The frontend should remain thin: it presents document/library/chat workflows and calls the FastAPI backend for all persistent state.
+
+## Milestone 2 UI
+
+The document library page performs four integration tasks:
+
+- checks API health via `GET /health`;
+- lists documents via `GET /documents`;
+- uploads a file with `POST /documents`;
+- deletes a document with `DELETE /documents/{document_id}`.
+
+## Milestone 6 Chat UI
+
+The home page now includes an evidence chat workspace alongside the document library. The chat UI performs these integration tasks:
+
+- lists conversations with `GET /conversations`;
+- creates a conversation with `POST /conversations`;
+- deletes a conversation with `DELETE /conversations/{conversation_id}`;
+- reads message history with `GET /conversations/{conversation_id}/messages`;
+- posts a question with `POST /conversations/{conversation_id}/messages`;
+- renders assistant evidence rows returned by the backend.
+
+The frontend does not call an LLM. Assistant content and evidence snippets are the deterministic backend evidence preview from the local FastAPI API.
+
+## Milestone 7 Local Workflow UI
+
+The document library now supports the full local happy path from the browser:
+
+- loads ingestion status with `GET /documents/{document_id}/ingestion`;
+- retries ingestion with `POST /documents/{document_id}/ingestion`;
+- shows extracted text preview from `GET /documents/{document_id}/ingestion/text-preview`;
+- runs chunking with `POST /documents/{document_id}/chunks`;
+- shows chunk readiness with `GET /documents/{document_id}/chunks`;
+- prepares a document by running ingestion and chunking in sequence from the UI.
+
+This keeps the backend endpoints explicit while removing the need for manual curl commands during normal local testing.
+
+## Milestone 8 Source Evidence Preview
+
+Assistant evidence cards are now expandable. When a user opens a card, the UI calls:
+
+```http
+GET /documents/{document_id}/chunks/{chunk_id}/context
+```
+
+The expanded card shows the evidence rank, score, excerpt snapshot, document filename when available,
+the selected chunk metadata, full chunk text, and nearby previous/next chunks. Context is loaded lazily
+so normal chat history remains lightweight.
+
+## Milestone 12 Stable Evidence Preview
+
+Chat evidence cards now call the message evidence source endpoint:
+
+```http
+GET /conversations/{conversation_id}/messages/{message_id}/evidence/{evidence_id}/source
+```
+
+The expanded card marks live source context when the current chunk still exists. If chunks were
+regenerated or deleted, the card stays expandable and shows the stored snapshot captured when the
+assistant answer was created.
+
+## Milestone 21 Provider Diagnostics
+
+The chat workspace shows a small answer provider status panel. It calls:
+
+```http
+GET /answer-provider/status
+```
+
+The panel displays the active provider name, availability, provider type, configured model, safe base
+URL host, and whether API keys, network access, model downloads, or streaming are required. This is
+diagnostic only. It does not add LLM synthesis or change chat behavior. When the optional
+OpenAI-compatible provider is selected, the UI never displays API keys or full URLs.
+
+## Configuration
+
+The frontend reads `NEXT_PUBLIC_API_BASE_URL` when provided. If absent, it defaults to `http://127.0.0.1:8000`.
+
+For Windows 11 local-native development, set npm cache outside the C drive when installing dependencies:
+
+```powershell
+$env:NPM_CONFIG_CACHE="F:\paperlens-npm-cache"; npm install
+```
+
+## Current limitations
+
+- No authentication.
+- Ingestion and chunking still run synchronously through API requests.
+- No PDF page viewer yet.
+- No LLM synthesis in the frontend; answer provider status is informational only.

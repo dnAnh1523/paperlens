@@ -13,6 +13,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "lucide-react": "^1.18.0",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
@@ -21,5 +22,8 @@
   "devDependencies": {
     "eslint": "latest",
     "eslint-config-next": "latest"
+  },
+  "overrides": {
+    "postcss": "8.5.10"
   }
 }

@@ -1,0 +1,330 @@
+import re
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
+
+from app.generation.answer_service import (
+    AnswerProvider,
+    AnswerProviderType,
+    AnswerProvenance,
+    AnswerRequest,
+    EvidenceInput,
+    excerpt_text,
+    get_answer_provider,
+)
+from app.models.conversation import Conversation, Message, MessageEvidence, MessageRole
+from app.models.document import Document
+from app.services.retrieval_service import ChunkSearchResult, search_chunks
+
+DEFAULT_CONVERSATION_TITLE = "New conversation"
+DEFAULT_EVIDENCE_LIMIT = 5
+
+
+@dataclass(frozen=True)
+class ChatTurn:
+    user_message: Message
+    assistant_message: Message
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _conversation_title_from_question(question: str) -> str:
+    normalized = re.sub(r"\s+", " ", question).strip()
+    if not normalized:
+        return DEFAULT_CONVERSATION_TITLE
+    return normalized[:60]
+
+
+def create_conversation(
+    db: Session,
+    title: str | None = None,
+    scoped_document_id: str | None = None,
+    source_document_ids: list[str] | None = None,
+) -> Conversation:
+    cleaned_title = title.strip() if title else DEFAULT_CONVERSATION_TITLE
+    scoped_document = None
+    if scoped_document_id is not None:
+        scoped_document = db.get(Document, scoped_document_id)
+        if scoped_document is None:
+            raise ValueError("Scoped document not found.")
+
+    conversation = Conversation(
+        conversation_id=str(uuid4()),
+        title=cleaned_title,
+        scoped_document_id=scoped_document_id,
+    )
+    if source_document_ids is not None:
+        conversation.source_document_ids = source_document_ids
+    db.add(conversation)
+    db.commit()
+    db.refresh(conversation)
+    conversation.scoped_document = scoped_document
+    return conversation
+
+
+def list_conversations(db: Session) -> list[Conversation]:
+    statement = (
+        select(Conversation)
+        .options(selectinload(Conversation.scoped_document))
+        .order_by(Conversation.updated_at.desc())
+    )
+    return list(db.scalars(statement).all())
+
+
+def get_conversation(db: Session, conversation_id: str) -> Conversation | None:
+    statement = (
+        select(Conversation)
+        .options(selectinload(Conversation.scoped_document))
+        .where(Conversation.conversation_id == conversation_id)
+    )
+    return db.scalars(statement).first()
+
+
+def get_message_evidence(
+    db: Session,
+    conversation_id: str,
+    message_id: str,
+    evidence_id: str,
+) -> MessageEvidence | None:
+    statement = (
+        select(MessageEvidence)
+        .join(Message, Message.message_id == MessageEvidence.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.message_id == message_id,
+            MessageEvidence.evidence_id == evidence_id,
+        )
+    )
+    return db.scalars(statement).first()
+
+
+def delete_conversation(db: Session, conversation: Conversation) -> None:
+    db.delete(conversation)
+    db.commit()
+
+
+def list_messages(db: Session, conversation_id: str) -> list[Message]:
+    statement = (
+        select(Message)
+        .options(selectinload(Message.evidence))
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at.asc(), Message.message_id.asc())
+    )
+    return list(db.scalars(statement).all())
+
+
+def _evidence_input_from_search_result(result: ChunkSearchResult) -> EvidenceInput:
+    return EvidenceInput(
+        rank=result.rank,
+        score=result.score,
+        document_id=result.document.id,
+        document_title=result.document.title,
+        document_filename=result.document.original_filename,
+        chunk_id=result.chunk.chunk_id,
+        chunk_index=result.chunk.chunk_index,
+        text=result.chunk.text,
+        page_number=result.chunk.page_number,
+    )
+
+
+def _create_evidence_rows(
+    assistant_message: Message,
+    results: list[ChunkSearchResult],
+) -> list[MessageEvidence]:
+    return [
+        MessageEvidence(
+            evidence_id=str(uuid4()),
+            message_id=assistant_message.message_id,
+            document_id=result.document.id,
+            chunk_id=result.chunk.chunk_id,
+            rank=result.rank,
+            score=result.score,
+            excerpt=excerpt_text(result.chunk.text),
+            full_chunk_text_snapshot=result.chunk.text,
+            document_title_snapshot=result.document.title,
+            document_filename_snapshot=result.document.original_filename,
+            chunk_index_snapshot=result.chunk.chunk_index,
+            char_start_snapshot=result.chunk.char_start,
+            char_end_snapshot=result.chunk.char_end,
+            page_number=result.chunk.page_number,
+            page_start=result.chunk.page_start,
+            page_end=result.chunk.page_end,
+            estimated_token_count_snapshot=result.chunk.estimated_token_count,
+        )
+        for result in results
+    ]
+
+
+def _answer_provenance(answer_provider: AnswerProvider, answer: object) -> AnswerProvenance:
+    provenance = getattr(answer, "provenance", None)
+    if isinstance(provenance, AnswerProvenance):
+        return provenance
+
+    provider_name = getattr(answer, "provider", answer_provider.provider_name)
+    model_name = getattr(answer, "model", answer_provider.model_name)
+    return AnswerProvenance(
+        provider_name=str(provider_name),
+        provider_type=AnswerProviderType.UNKNOWN.value,
+        model_name=str(model_name) if model_name is not None else None,
+    )
+
+
+def _build_assistant_message(
+    db: Session,
+    conversation: Conversation,
+    question: str,
+    created_at: datetime,
+    evidence_limit: int,
+    answer_provider: AnswerProvider | None = None,
+) -> tuple[Message, list[MessageEvidence]]:
+    results = search_chunks(
+        db,
+        query=question,
+        limit=evidence_limit,
+        document_ids=conversation.source_document_ids,
+    )
+    provider = answer_provider or get_answer_provider()
+    answer = provider.generate(
+        AnswerRequest(
+            question=question,
+            evidence=[_evidence_input_from_search_result(result) for result in results],
+        )
+    )
+    provenance = _answer_provenance(provider, answer)
+    assistant_message = Message(
+        message_id=str(uuid4()),
+        conversation_id=conversation.conversation_id,
+        role=MessageRole.ASSISTANT,
+        content=answer.content,
+        created_at=created_at,
+        answer_provider_name=provenance.provider_name,
+        answer_provider_type=provenance.provider_type,
+        answer_model_name=provenance.model_name,
+        answer_fallback_used=provenance.fallback_used,
+        answer_fallback_reason=provenance.fallback_reason,
+    )
+    return assistant_message, _create_evidence_rows(assistant_message, results)
+
+
+def _find_following_assistant_message(
+    db: Session,
+    conversation_id: str,
+    user_message_id: str,
+) -> Message | None:
+    statement = (
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at.asc(), Message.message_id.asc())
+    )
+    messages = list(db.scalars(statement).all())
+    found_user_message = False
+    for message in messages:
+        if message.message_id == user_message_id:
+            found_user_message = True
+            continue
+        if not found_user_message:
+            continue
+        if message.role == MessageRole.USER:
+            return None
+        if message.role == MessageRole.ASSISTANT:
+            return message
+    return None
+
+
+def post_user_message(
+    db: Session,
+    conversation: Conversation,
+    content: str,
+    evidence_limit: int = DEFAULT_EVIDENCE_LIMIT,
+    answer_provider: AnswerProvider | None = None,
+) -> ChatTurn:
+    question = content.strip()
+    timestamp = _now()
+    assistant_timestamp = timestamp + timedelta(microseconds=1)
+
+    if conversation.title in (DEFAULT_CONVERSATION_TITLE, "New Workspace", "None Title Workspace"):
+        conversation.title = _conversation_title_from_question(question)
+    conversation.updated_at = assistant_timestamp
+
+    user_message = Message(
+        message_id=str(uuid4()),
+        conversation_id=conversation.conversation_id,
+        role=MessageRole.USER,
+        content=question,
+        created_at=timestamp,
+    )
+    assistant_message, evidence_rows = _build_assistant_message(
+        db=db,
+        conversation=conversation,
+        question=question,
+        created_at=assistant_timestamp,
+        evidence_limit=evidence_limit,
+        answer_provider=answer_provider,
+    )
+
+    db.add_all([conversation, user_message, assistant_message, *evidence_rows])
+    db.commit()
+    db.refresh(user_message)
+    db.refresh(assistant_message)
+    assistant_message.evidence = evidence_rows
+    return ChatTurn(user_message=user_message, assistant_message=assistant_message)
+
+
+def regenerate_user_message(
+    db: Session,
+    conversation: Conversation,
+    message_id: str,
+    content: str,
+    evidence_limit: int = DEFAULT_EVIDENCE_LIMIT,
+    answer_provider: AnswerProvider | None = None,
+) -> ChatTurn | None:
+    question = content.strip()
+    statement = select(Message).where(
+        Message.conversation_id == conversation.conversation_id,
+        Message.message_id == message_id,
+        Message.role == MessageRole.USER,
+    )
+    user_message = db.scalars(statement).first()
+    if user_message is None:
+        return None
+
+    old_assistant_message = _find_following_assistant_message(
+        db,
+        conversation_id=conversation.conversation_id,
+        user_message_id=message_id,
+    )
+    assistant_timestamp = (
+        old_assistant_message.created_at
+        if old_assistant_message is not None
+        else user_message.created_at + timedelta(microseconds=1)
+    )
+
+    if old_assistant_message is not None:
+        db.delete(old_assistant_message)
+        db.flush()
+
+    user_message.content = question
+    if conversation.title in (DEFAULT_CONVERSATION_TITLE, "New Workspace", "None Title Workspace"):
+        conversation.title = _conversation_title_from_question(question)
+    conversation.updated_at = _now()
+
+    assistant_message, evidence_rows = _build_assistant_message(
+        db=db,
+        conversation=conversation,
+        question=question,
+        created_at=assistant_timestamp,
+        evidence_limit=evidence_limit,
+        answer_provider=answer_provider,
+    )
+
+    db.add_all([conversation, user_message, assistant_message, *evidence_rows])
+    db.commit()
+    db.refresh(user_message)
+    db.refresh(assistant_message)
+    assistant_message.evidence = evidence_rows
+    return ChatTurn(user_message=user_message, assistant_message=assistant_message)

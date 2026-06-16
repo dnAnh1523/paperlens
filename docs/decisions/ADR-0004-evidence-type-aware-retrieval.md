@@ -4,6 +4,9 @@
 
 Proposed
 
+M1-M18 implement the local text/page-aware retrieval foundation only. Full evidence-type-aware
+retrieval for tables, figures, charts, equations, captions, and page images remains future work.
+
 ## Context
 
 Scientific papers contain heterogeneous evidence. Text-only chunks are insufficient for many questions.

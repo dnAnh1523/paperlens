@@ -2,7 +2,12 @@
 
 PaperLens is an applied CS thesis + production-style software project for evidence-type-aware multimodal RAG over scientific and technical papers.
 
-This scaffold uses a **local-native Windows development setup** instead of Docker.
+This scaffold uses a **zero-budget-first, local-native Windows development setup** instead of Docker
+by default. Core local development and tests do not require paid APIs, hosted vector databases, cloud
+accounts, model downloads, or API keys. Future optional adapters may use zero-cost/free-tier services,
+open-source local tools, or free inference providers when they are isolated behind interfaces,
+disabled by default, documented clearly, and fail gracefully when credentials, quota, binaries, or
+local resources are unavailable.
 
 ## Local development on Windows 11
 
@@ -57,21 +62,101 @@ npm run dev
 
 Open `http://127.0.0.1:3000`.
 
+## Run retrieval smoke test
+
+Seed the committed sample fixture into the same local SQLite/storage state used by the app:
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/sample_retrieval_source.txt --reset
+```
+
+Then run the deterministic retrieval smoke test from the repository root:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --mode auto
+```
+
+The sample smoke dataset is designed for `evals/fixtures/sample_retrieval_source.txt` and uses explicit
+anchor terms such as `localstackeval`, `chunkingeval`, and `sourceprevieweval`. A 3/3 result means the
+fixture was seeded, indexed, and found by retrieval; it does not prove retrieval quality or show that
+FTS5 is better than LIKE. Harder benchmark datasets are future work.
+
+The seed command creates or reuses the local document record, stores the fixture under the app storage
+folder, ingests it, and chunks it without requiring the FastAPI server. JSON reports can be written
+with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --mode like --write-json
+```
+
+Compare LIKE, FTS5 when available, and AUTO with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes
+```
+
+Write the comparison report JSON with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes --write-json
+```
+
+Write a Markdown report with:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/sample_retrieval_smoke.json --compare-modes --write-markdown
+```
+
+Generated JSON and Markdown reports under `evals/runs/` are ignored by Git.
+
+## Run retrieval benchmark v1
+
+Seed the harder benchmark fixture:
+
+```powershell
+python scripts/seed_eval_fixture.py --fixture evals/fixtures/retrieval_benchmark_v1_source.txt --reset
+```
+
+Run LIKE, FTS5 when available, and AUTO against the benchmark:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes
+```
+
+Write thesis-friendly JSON and Markdown report artifacts:
+
+```powershell
+python scripts/run_retrieval_eval.py --dataset evals/datasets/retrieval_benchmark_v1.json --compare-modes --write-json --write-markdown
+```
+
+`retrieval_benchmark_v1` uses natural-language questions, distractor paragraphs, table-like rows,
+figure-caption-like text, and limitations. It is intended to reveal local lexical retrieval failure
+modes. Non-perfect scores are expected and useful. The Markdown report includes run metadata, a metrics
+table, per-question results, interpretation notes, and limitations.
+
 ## Storage strategy
 
 Local development uses:
 
 - SQLite for metadata
 - local folders for document/page assets
-- Qdrant Client local mode for vector search experiments
+- SQLite LIKE/FTS5 lexical retrieval
+- deterministic fake/hash embeddings for pipeline scaffolding only
 
-Production can later use:
+Optional adapters can later introduce managed services, free deployment tiers, open-source OCR, local
+models, or free-provider API integrations behind interfaces, but they are not part of the default
+zero-budget development setup:
 
 - PostgreSQL
-- S3 or MinIO
-- managed Qdrant or another vector database
+- object storage
+- a managed or local vector database
 - Redis worker queues
+- free-tier LLM or embedding providers
+- open-source OCR such as Tesseract
+- free cloud deployment tiers
 
 ## Current status
 
-This is the first local-native scaffold. It intentionally avoids Docker to protect disk space on Windows development machines.
+PaperLens intentionally avoids mandatory Docker, paid APIs, hosted services, and model downloads in
+local development to stay usable on zero budget. Optional future integrations must not become
+requirements for the core evidence pipeline.

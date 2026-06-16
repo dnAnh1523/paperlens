@@ -104,6 +104,7 @@ export type Conversation = {
     title: string;
     original_filename: string;
   } | null;
+  source_document_ids: string[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -211,16 +212,23 @@ export async function fetchAnswerProviderStatus(): Promise<AnswerProviderStatus>
   return parseJsonResponse<AnswerProviderStatus>(response);
 }
 
-export async function fetchDocuments(): Promise<PaperLensDocument[]> {
-  const response = await fetch(`${API_BASE_URL}/documents`, { cache: "no-store" });
+export async function fetchDocuments(conversationId?: string): Promise<PaperLensDocument[]> {
+  const url = conversationId
+    ? `${API_BASE_URL}/documents?conversation_id=${encodeURIComponent(conversationId)}`
+    : `${API_BASE_URL}/documents`;
+  const response = await fetch(url, { cache: "no-store" });
   return parseJsonResponse<PaperLensDocument[]>(response);
 }
 
-export async function uploadDocument(file: File): Promise<PaperLensDocument> {
+export async function uploadDocument(file: File, conversationId?: string): Promise<PaperLensDocument> {
   const body = new FormData();
   body.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/documents`, {
+  const url = conversationId
+    ? `${API_BASE_URL}/documents?conversation_id=${encodeURIComponent(conversationId)}`
+    : `${API_BASE_URL}/documents`;
+
+  const response = await fetch(url, {
     method: "POST",
     body,
   });
@@ -237,6 +245,18 @@ export async function deleteDocument(documentId: string): Promise<void> {
   if (!response.ok) {
     throw new Error(await parseError(response));
   }
+}
+
+export async function updateDocumentTitle(
+  documentId: string,
+  title: string,
+): Promise<PaperLensDocument> {
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  return parseJsonResponse<PaperLensDocument>(response);
 }
 
 export async function fetchDocumentIngestion(documentId: string): Promise<IngestionJob> {
@@ -307,19 +327,39 @@ export async function fetchMessageEvidenceSource(
 export async function createConversation(
   title?: string,
   scopedDocumentId?: string,
+  sourceDocumentIds?: string[],
+  signal?: AbortSignal,
 ): Promise<Conversation> {
-  const payload: { title?: string; scoped_document_id?: string } = {};
+  const payload: { title?: string; scoped_document_id?: string; source_document_ids?: string[] } = {};
   if (title) {
     payload.title = title;
   }
   if (scopedDocumentId) {
     payload.scoped_document_id = scopedDocumentId;
   }
+  if (sourceDocumentIds) {
+    payload.source_document_ids = sourceDocumentIds;
+  }
   const hasPayload = Object.keys(payload).length > 0;
   const response = await fetch(`${API_BASE_URL}/conversations`, {
     method: "POST",
     headers: hasPayload ? { "Content-Type": "application/json" } : undefined,
     body: hasPayload ? JSON.stringify(payload) : undefined,
+    signal,
+  });
+  return parseJsonResponse<Conversation>(response);
+}
+
+export async function updateConversation(
+  conversationId: string,
+  payload: { title?: string; source_document_ids?: string[] },
+  signal?: AbortSignal,
+): Promise<Conversation> {
+  const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
   });
   return parseJsonResponse<Conversation>(response);
 }
@@ -349,12 +389,14 @@ export async function postConversationMessage(
   conversationId: string,
   content: string,
   limit = 5,
+  signal?: AbortSignal,
 ): Promise<ChatTurn> {
   const params = new URLSearchParams({ limit: String(limit) });
   const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages?${params}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),
+    signal,
   });
   return parseJsonResponse<ChatTurn>(response);
 }
@@ -364,4 +406,21 @@ export async function fetchConversationMessages(conversationId: string): Promise
     cache: "no-store",
   });
   return parseJsonResponse<ChatMessage[]>(response);
+}
+
+export async function updateConversationMessage(
+  conversationId: string,
+  messageId: string,
+  content: string,
+  limit = 5,
+  signal?: AbortSignal,
+): Promise<ChatTurn> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages/${messageId}?${params}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+    signal,
+  });
+  return parseJsonResponse<ChatTurn>(response);
 }

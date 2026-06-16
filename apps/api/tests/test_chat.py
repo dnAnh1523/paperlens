@@ -1,3 +1,4 @@
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -32,13 +33,13 @@ def _unique_text(term: str) -> str:
 def _text_layer_pdf(pages: list[str]) -> bytes:
     import fitz
 
-    pdf = fitz.open()
+    pdf: Any = fitz.open()
     for text in pages:
         page = pdf.new_page()
         if text:
             page.insert_text((72, 72), text, fontsize=11)
     try:
-        return pdf.tobytes()
+        return cast(bytes, pdf.tobytes())
     finally:
         pdf.close()
 
@@ -54,7 +55,7 @@ def _create_chunked_document(client: TestClient, term: str) -> dict[str, object]
     chunk_response = client.post(f"/documents/{document['id']}/chunks")
     assert chunk_response.status_code == 200
     assert len(chunk_response.json()) >= 1
-    return document
+    return cast(dict[str, object], document)
 
 
 def _create_chunked_text_document(client: TestClient, filename: str, text: str) -> dict[str, object]:
@@ -68,7 +69,7 @@ def _create_chunked_text_document(client: TestClient, filename: str, text: str) 
     chunk_response = client.post(f"/documents/{document['id']}/chunks")
     assert chunk_response.status_code == 200
     assert len(chunk_response.json()) >= 1
-    return document
+    return cast(dict[str, object], document)
 
 
 def _create_chunked_pdf_document(client: TestClient, term: str) -> dict[str, object]:
@@ -93,7 +94,7 @@ def _create_chunked_pdf_document(client: TestClient, term: str) -> dict[str, obj
     chunk_response = client.post(f"/documents/{document['id']}/chunks")
     assert chunk_response.status_code == 200
     assert len(chunk_response.json()) >= 2
-    return document
+    return cast(dict[str, object], document)
 
 
 def test_create_conversation() -> None:
@@ -635,10 +636,100 @@ def test_reading_message_history_returns_user_and_assistant_messages() -> None:
     assert messages[1]["evidence"]
 
 
+def test_update_user_message_regenerates_turn_in_place() -> None:
+    client = TestClient(app)
+    old_term = _term("chateditold")
+    new_term = _term("chateditnew")
+    later_term = _term("chateditlater")
+    old_document = _create_chunked_document(client, old_term)
+    new_document = _create_chunked_document(client, new_term)
+    _create_chunked_document(client, later_term)
+    conversation = client.post("/conversations", json={"title": "Editable chat"}).json()
+    conversation_id = conversation["conversation_id"]
+
+    first_turn_response = client.post(
+        f"/conversations/{conversation_id}/messages",
+        json={"content": old_term},
+    )
+    assert first_turn_response.status_code == 200
+    first_turn = first_turn_response.json()
+    user_message_id = first_turn["user_message"]["message_id"]
+    old_assistant_message_id = first_turn["assistant_message"]["message_id"]
+    old_evidence_id = first_turn["assistant_message"]["evidence"][0]["evidence_id"]
+
+    later_turn_response = client.post(
+        f"/conversations/{conversation_id}/messages",
+        json={"content": later_term},
+    )
+    assert later_turn_response.status_code == 200
+    later_turn = later_turn_response.json()
+
+    update_response = client.patch(
+        f"/conversations/{conversation_id}/messages/{user_message_id}",
+        json={"content": new_term},
+    )
+
+    assert update_response.status_code == 200
+    updated_turn = update_response.json()
+    assert updated_turn["user_message"]["message_id"] == user_message_id
+    assert updated_turn["user_message"]["content"] == new_term
+    assert updated_turn["assistant_message"]["message_id"] != old_assistant_message_id
+    assert updated_turn["assistant_message"]["evidence"]
+    assert {item["document_id"] for item in updated_turn["assistant_message"]["evidence"]} == {
+        new_document["id"]
+    }
+    assert old_document["id"] not in {
+        item["document_id"] for item in updated_turn["assistant_message"]["evidence"]
+    }
+
+    history_response = client.get(f"/conversations/{conversation_id}/messages")
+    assert history_response.status_code == 200
+    messages = history_response.json()
+    assert [message["role"] for message in messages] == ["user", "assistant", "user", "assistant"]
+    assert messages[0]["message_id"] == user_message_id
+    assert messages[0]["content"] == new_term
+    assert messages[1]["message_id"] == updated_turn["assistant_message"]["message_id"]
+    assert messages[2]["message_id"] == later_turn["user_message"]["message_id"]
+
+    with SessionLocal() as db:
+        assert db.get(Message, old_assistant_message_id) is None
+        assert db.get(MessageEvidence, old_evidence_id) is None
+
+
+def test_update_message_rejects_assistant_message() -> None:
+    client = TestClient(app)
+    term = _term("chateditassistant")
+    _create_chunked_document(client, term)
+    conversation = client.post("/conversations").json()
+    conversation_id = conversation["conversation_id"]
+    post_response = client.post(
+        f"/conversations/{conversation_id}/messages",
+        json={"content": term},
+    )
+    assert post_response.status_code == 200
+    assistant_message_id = post_response.json()["assistant_message"]["message_id"]
+
+    update_response = client.patch(
+        f"/conversations/{conversation_id}/messages/{assistant_message_id}",
+        json={"content": "do not edit assistant messages"},
+    )
+
+    assert update_response.status_code == 404
+    assert update_response.json()["detail"] == "User message not found"
+
+
 def test_delete_conversation_cascades_messages_and_evidence() -> None:
     client = TestClient(app)
     term = _term("chatneedledelete")
     _create_chunked_document(client, term)
+    conversation = client.post("/conversations", json={"title": "Delete chat"}).json()
+    conversation_id = conversation["conversation_id"]
+
+    post_response = client.post(
+        f"/conversations/{conversation_id}/messages",
+        json={"content": term},
+    )
+    assert post_response.status_code == 200
     conversation = client.post("/conversations", json={"title": "Delete chat"}).json()
     conversation_id = conversation["conversation_id"]
 
@@ -661,3 +752,37 @@ def test_delete_conversation_cascades_messages_and_evidence() -> None:
         assert db.get(Message, user_message_id) is None
         assert db.get(Message, assistant_message_id) is None
         assert db.get(MessageEvidence, evidence_id) is None
+
+
+def test_workspace_isolation() -> None:
+    client = TestClient(app)
+    term1 = _term("workspaceisolated1")
+    term2 = _term("workspaceisolated2")
+    doc1 = _create_chunked_document(client, term1)
+    doc2 = _create_chunked_document(client, term2)
+
+    # Create workspace with only doc1
+    ws = client.post("/conversations", json={"title": "WS 1", "source_document_ids": [doc1["id"]]}).json()
+    assert ws["source_document_ids"] == [doc1["id"]]
+
+    # Query term2 (doc2) inside WS 1 -> should return 0 chunks since doc2 is isolated from WS 1
+    resp = client.post(f"/conversations/{ws['conversation_id']}/messages", json={"content": term2})
+    assert resp.status_code == 200
+    assert resp.json()["assistant_message"]["evidence"] == []
+
+    # Query term1 (doc1) inside WS 1 -> should retrieve from doc1
+    resp = client.post(f"/conversations/{ws['conversation_id']}/messages", json={"content": term1})
+    assert resp.status_code == 200
+    assert len(resp.json()["assistant_message"]["evidence"]) >= 1
+    assert resp.json()["assistant_message"]["evidence"][0]["document_id"] == doc1["id"]
+
+    # PATCH workspace to assign doc2 as well
+    patch_resp = client.patch(f"/conversations/{ws['conversation_id']}", json={"source_document_ids": [doc1["id"], doc2["id"]]})
+    assert patch_resp.status_code == 200
+    assert set(patch_resp.json()["source_document_ids"]) == {doc1["id"], doc2["id"]}
+
+    # Query term2 (doc2) inside WS 1 -> now it should retrieve from doc2
+    resp = client.post(f"/conversations/{ws['conversation_id']}/messages", json={"content": term2})
+    assert resp.status_code == 200
+    assert len(resp.json()["assistant_message"]["evidence"]) >= 1
+    assert resp.json()["assistant_message"]["evidence"][0]["document_id"] == doc2["id"]

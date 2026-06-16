@@ -1,4 +1,5 @@
 import json
+from typing import cast
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -32,7 +33,7 @@ def _upload_text(client: TestClient, filename: str, text: str) -> dict[str, obje
         files={"file": (filename, text.encode("utf-8"), "text/plain")},
     )
     assert response.status_code == 201
-    return response.json()
+    return cast(dict[str, object], response.json())
 
 
 def _create_chunked_document(client: TestClient, term: str) -> tuple[dict[str, object], list[dict[str, object]]]:

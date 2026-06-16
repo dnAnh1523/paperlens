@@ -1,4 +1,5 @@
 import json
+from typing import Any, cast
 
 from fastapi.testclient import TestClient
 from uuid import uuid4
@@ -19,19 +20,19 @@ def _upload_text(client: TestClient, filename: str, text: str) -> dict[str, obje
     assert response.status_code == 201
     created = response.json()
     assert created["status"] == "ready"
-    return created
+    return cast(dict[str, object], created)
 
 
 def _text_layer_pdf(pages: list[str]) -> bytes:
     import fitz
 
-    pdf = fitz.open()
+    pdf: Any = fitz.open()
     for text in pages:
         page = pdf.new_page()
         if text:
             page.insert_text((72, 72), text, fontsize=11)
     try:
-        return pdf.tobytes()
+        return cast(bytes, pdf.tobytes())
     finally:
         pdf.close()
 
@@ -44,7 +45,7 @@ def _upload_pdf(client: TestClient, filename: str, pages: list[str]) -> dict[str
     assert response.status_code == 201
     created = response.json()
     assert created["status"] == "ready"
-    return created
+    return cast(dict[str, object], created)
 
 
 def _long_text(unique_term: str) -> str:

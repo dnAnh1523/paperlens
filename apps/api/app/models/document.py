@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, Enum, String, Text
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -30,6 +30,12 @@ class Document(Base):
     file_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     storage_path: Mapped[str] = mapped_column(Text, nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("conversations.conversation_id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     status: Mapped[DocumentStatus] = mapped_column(
         Enum(DocumentStatus, native_enum=False),
         nullable=False,

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.document import DocumentStatus
 from app.models.ingestion_job import IngestionJobStatus
@@ -27,6 +27,10 @@ class IngestionTextPreviewRead(BaseModel):
     preview_characters: int
 
 
+class DocumentUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=512)
+
+
 class DocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,6 +42,7 @@ class DocumentRead(BaseModel):
     sha256: str
     storage_path: str
     status: DocumentStatus
+    conversation_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

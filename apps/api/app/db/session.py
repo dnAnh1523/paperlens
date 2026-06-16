@@ -33,6 +33,12 @@ def init_db() -> None:
     settings.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_columns(
+        "documents",
+        {
+            "conversation_id": "VARCHAR(36)",
+        },
+    )
+    _ensure_sqlite_columns(
         "document_chunks",
         {
             "page_number": "INTEGER",
@@ -71,6 +77,7 @@ def init_db() -> None:
         "conversations",
         {
             "scoped_document_id": "VARCHAR(36)",
+            "source_document_ids": "TEXT",
         },
     )
 

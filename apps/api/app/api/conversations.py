@@ -10,12 +10,14 @@ from app.schemas.chat import (
     ChatTurnRead,
     ConversationCreate,
     ConversationRead,
+    ConversationUpdate,
     EvidenceSourceChunkRead,
     EvidenceSourceDocumentRead,
     MessageCreate,
     MessageEvidenceRead,
     MessageEvidenceSourceRead,
     MessageRead,
+    MessageUpdate,
 )
 from app.services.chunking_service import get_document_chunk_context
 from app.services.chat_service import (
@@ -27,6 +29,7 @@ from app.services.chat_service import (
     list_conversations,
     list_messages,
     post_user_message,
+    regenerate_user_message,
 )
 from app.services.document_service import get_document
 
@@ -102,9 +105,30 @@ def create_chat_conversation(
             db,
             title=payload.title if payload else None,
             scoped_document_id=payload.scoped_document_id if payload else None,
+            source_document_ids=payload.source_document_ids if payload else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.patch("/{conversation_id}", response_model=ConversationRead)
+def update_chat_conversation(
+    conversation_id: str,
+    payload: ConversationUpdate,
+    db: Session = Depends(get_db),
+) -> Conversation:
+    conversation = get_conversation(db, conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    if payload.title is not None:
+        conversation.title = payload.title.strip()
+    if payload.source_document_ids is not None:
+        conversation.source_document_ids = payload.source_document_ids
+
+    db.commit()
+    db.refresh(conversation)
+    return conversation
 
 
 @router.get("", response_model=list[ConversationRead])
@@ -166,6 +190,41 @@ def read_conversation_messages(
     if conversation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     return list_messages(db, conversation_id)
+
+
+@router.patch("/{conversation_id}/messages/{message_id}", response_model=ChatTurnRead)
+def update_conversation_user_message(
+    conversation_id: str,
+    message_id: str,
+    payload: MessageUpdate,
+    limit: int = Query(default=DEFAULT_EVIDENCE_LIMIT, ge=0, le=20),
+    db: Session = Depends(get_db),
+) -> ChatTurnRead:
+    conversation = get_conversation(db, conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    try:
+        turn = regenerate_user_message(
+            db,
+            conversation=conversation,
+            message_id=message_id,
+            content=payload.content,
+            evidence_limit=limit,
+        )
+    except UnsupportedAnswerProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+    if turn is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User message not found")
+
+    return ChatTurnRead(
+        user_message=MessageRead.model_validate(turn.user_message),
+        assistant_message=MessageRead.model_validate(turn.assistant_message),
+    )
 
 
 @router.get(

@@ -46,6 +46,7 @@ def _safe_filename(filename: str) -> str:
 
 
 def _document_title(filename: str) -> str:
+
     title = Path(filename).stem.strip()
     return title or filename
 
@@ -67,7 +68,11 @@ def guess_content_type_for_filename(filename: str) -> str:
     return guessed_content_type or "application/octet-stream"
 
 
-def create_document_from_upload(db: Session, upload: UploadFile) -> Document:
+def create_document_from_upload(
+    db: Session,
+    upload: UploadFile,
+    conversation_id: str | None = None,
+) -> Document:
     if not upload.filename:
         raise ValueError("Uploaded file must have a filename.")
 
@@ -102,6 +107,7 @@ def create_document_from_upload(db: Session, upload: UploadFile) -> Document:
         sha256=sha256,
         storage_path=str(stored_file_path),
         status=DocumentStatus.PENDING,
+        conversation_id=conversation_id,
     )
     job = IngestionJob(
         id=str(uuid4()),
@@ -169,12 +175,27 @@ def create_document_from_local_path(
     return document
 
 
-def list_documents(db: Session) -> list[Document]:
-    return list(db.scalars(select(Document).order_by(Document.created_at.desc())).all())
+def list_documents(db: Session, conversation_id: str | None = None) -> list[Document]:
+    statement = select(Document)
+    if conversation_id is not None:
+        statement = statement.where(Document.conversation_id == conversation_id)
+    return list(db.scalars(statement.order_by(Document.created_at.desc())).all())
 
 
 def get_document(db: Session, document_id: str) -> Document | None:
     return db.get(Document, document_id)
+
+
+def update_document_title(db: Session, document: Document, title: str) -> Document:
+    cleaned_title = title.strip()
+    if not cleaned_title:
+        raise ValueError("Document title cannot be empty.")
+
+    document.title = cleaned_title
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+    return document
 
 
 def delete_document(db: Session, document: Document) -> None:

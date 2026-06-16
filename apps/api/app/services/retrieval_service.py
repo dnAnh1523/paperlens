@@ -193,11 +193,13 @@ def _search_chunks_like(
     db: Session,
     query: str,
     limit: int,
-    document_id: str | None = None,
+    document_ids: list[str] | None = None,
     backend: str = RetrievalMode.LIKE.value,
 ) -> list[ChunkSearchResult]:
     terms = tokenize_query(query)
     if not terms:
+        return []
+    if document_ids is not None and len(document_ids) == 0:
         return []
 
     like_filters = [func.lower(DocumentChunk.text).like(f"%{term}%") for term in terms]
@@ -207,8 +209,8 @@ def _search_chunks_like(
         .where(or_(*like_filters))
         .order_by(DocumentChunk.created_at.desc())
     )
-    if document_id is not None:
-        statement = statement.where(DocumentChunk.document_id == document_id)
+    if document_ids is not None:
+        statement = statement.where(DocumentChunk.document_id.in_(document_ids))
     rows = db.execute(statement).all()
 
     scored: list[tuple[float, DocumentChunk, Document]] = []
@@ -245,19 +247,26 @@ def _search_chunks_fts5(
     db: Session,
     query: str,
     limit: int,
-    document_id: str | None = None,
+    document_ids: list[str] | None = None,
 ) -> list[ChunkSearchResult]:
     terms = tokenize_query(query)
     if not terms:
+        return []
+    if document_ids is not None and len(document_ids) == 0:
         return []
     if not ensure_fts_index_current(db):
         raise RetrievalBackendUnavailableError("SQLite FTS5 is not available in this environment.")
 
     fts_query = _fts_query_from_terms(terms)
-    document_filter = "AND document_id = :document_id" if document_id is not None else ""
-    params: dict[str, object] = {"query": fts_query, "limit": limit}
-    if document_id is not None:
-        params["document_id"] = document_id
+    if document_ids is not None:
+        doc_placeholders = [f":doc_{i}" for i in range(len(document_ids))]
+        document_filter = f"AND document_id IN ({', '.join(doc_placeholders)})"
+        params = {"query": fts_query, "limit": limit}
+        for i, doc_id in enumerate(document_ids):
+            params[f"doc_{i}"] = doc_id
+    else:
+        document_filter = ""
+        params = {"query": fts_query, "limit": limit}
 
     rows = db.execute(
         text(
@@ -283,8 +292,8 @@ def _search_chunks_fts5(
         .join(Document, Document.id == DocumentChunk.document_id)
         .where(DocumentChunk.chunk_id.in_(distance_by_chunk_id))
     )
-    if document_id is not None:
-        statement = statement.where(DocumentChunk.document_id == document_id)
+    if document_ids is not None:
+        statement = statement.where(DocumentChunk.document_id.in_(document_ids))
     chunk_rows = list(db.execute(statement).all())
     chunk_rows.sort(key=lambda row: order_by_chunk_id[row[0].chunk_id])
 
@@ -311,28 +320,34 @@ def search_chunks(
     limit: int,
     mode: str | RetrievalMode | None = None,
     document_id: str | None = None,
+    document_ids: list[str] | None = None,
 ) -> list[ChunkSearchResult]:
+    if document_id is not None:
+        if document_ids is None:
+            document_ids = [document_id]
+        elif document_id not in document_ids:
+            document_ids = document_ids + [document_id]
     requested_mode = normalize_retrieval_mode(mode)
     if requested_mode == RetrievalMode.LIKE:
-        return _search_chunks_like(db, query=query, limit=limit, document_id=document_id)
+        return _search_chunks_like(db, query=query, limit=limit, document_ids=document_ids)
     if requested_mode == RetrievalMode.FTS5:
-        return _search_chunks_fts5(db, query=query, limit=limit, document_id=document_id)
+        return _search_chunks_fts5(db, query=query, limit=limit, document_ids=document_ids)
 
     if is_fts5_available(db):
         try:
-            return _search_chunks_fts5(db, query=query, limit=limit, document_id=document_id)
+            return _search_chunks_fts5(db, query=query, limit=limit, document_ids=document_ids)
         except RetrievalBackendUnavailableError:
             return _search_chunks_like(
                 db,
                 query=query,
                 limit=limit,
-                document_id=document_id,
+                document_ids=document_ids,
                 backend=RetrievalMode.LIKE.value,
             )
     return _search_chunks_like(
         db,
         query=query,
         limit=limit,
-        document_id=document_id,
+        document_ids=document_ids,
         backend=RetrievalMode.LIKE.value,
     )

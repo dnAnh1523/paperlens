@@ -9,6 +9,12 @@ from app.models.conversation import MessageRole
 class ConversationCreate(BaseModel):
     title: str | None = Field(default=None, max_length=256)
     scoped_document_id: str | None = None
+    source_document_ids: list[str] | None = None
+
+
+class ConversationUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=256)
+    source_document_ids: list[str] | None = None
 
 
 class ConversationScopedDocumentRead(BaseModel):
@@ -26,11 +32,16 @@ class ConversationRead(BaseModel):
     title: str
     scoped_document_id: str | None = None
     scoped_document: ConversationScopedDocumentRead | None = None
+    source_document_ids: list[str] | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class MessageCreate(BaseModel):
+    content: str = Field(min_length=1)
+
+
+class MessageUpdate(BaseModel):
     content: str = Field(min_length=1)
 
 

@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from fastapi.testclient import TestClient
 
@@ -18,19 +19,19 @@ def _upload(
         files={"file": (filename, content, content_type)},
     )
     assert response.status_code == 201
-    return response.json()
+    return cast(dict[str, object], response.json())
 
 
 def _text_layer_pdf(pages: list[str]) -> bytes:
     import fitz
 
-    pdf = fitz.open()
+    pdf: Any = fitz.open()
     for text in pages:
         page = pdf.new_page()
         if text:
             page.insert_text((72, 72), text, fontsize=11)
     try:
-        return pdf.tobytes()
+        return cast(bytes, pdf.tobytes())
     finally:
         pdf.close()
 

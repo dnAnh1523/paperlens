@@ -27,6 +27,33 @@ class Conversation(Base):
         nullable=True,
         index=True,
     )
+    _source_document_ids: Mapped[str | None] = mapped_column(
+        "source_document_ids",
+        Text,
+        nullable=True,
+    )
+
+    @property
+    def source_document_ids(self) -> list[str] | None:
+        import json
+        from typing import cast
+        if self._source_document_ids is None:
+            if self.scoped_document_id:
+                return [self.scoped_document_id]
+            return None
+        try:
+            return cast(list[str], json.loads(self._source_document_ids))
+        except Exception:
+            return []
+
+    @source_document_ids.setter
+    def source_document_ids(self, val: list[str] | None) -> None:
+        import json
+        if val is None:
+            self._source_document_ids = None
+        else:
+            self._source_document_ids = json.dumps(val)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -43,7 +70,7 @@ class Conversation(Base):
         back_populates="conversation",
         cascade="all, delete-orphan",
     )
-    scoped_document: Mapped["Document | None"] = relationship("Document")
+    scoped_document: Mapped["Document | None"] = relationship("Document", foreign_keys=[scoped_document_id])
 
 
 class Message(Base):

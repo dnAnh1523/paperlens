@@ -1,21 +1,39 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  KeyboardEvent,
+  UIEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Copy,
+  LoaderCircle,
+  Pencil,
+  Quote,
+  Square,
+} from "lucide-react";
+
 
 import {
-  AnswerProviderStatus,
   ChatMessage,
   Conversation,
   EvidenceSourceChunk,
-  MessageEvidenceSource,
   MessageEvidence,
-  createConversation,
-  deleteConversation,
+  MessageEvidenceSource,
   fetchAnswerProviderStatus,
   fetchConversationMessages,
   fetchConversations,
   fetchMessageEvidenceSource,
   postConversationMessage,
+  updateConversationMessage,
+  updateConversation,
 } from "../../lib/api";
 
 type EvidencePreviewState = {
@@ -25,17 +43,6 @@ type EvidencePreviewState = {
   error?: string;
 };
 
-type ScopedChatRequest = {
-  requestKey: number;
-  documentId: string;
-  title: string;
-  originalFilename: string;
-};
-
-type ChatWorkspaceProps = {
-  scopedChatRequest?: ScopedChatRequest | null;
-};
-
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -43,36 +50,19 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-function formatScore(score: number): string {
-  return Number.isInteger(score) ? String(score) : score.toFixed(2);
+function formatChunkLocation(chunk: EvidenceSourceChunk): string {
+  if (chunk.page_number !== null) {
+    return `p. ${chunk.page_number}`;
+  }
+  return "Source passage";
 }
 
 function getMessageLabel(message: ChatMessage): string {
   return message.role === "user" ? "You" : "PaperLens";
 }
 
-function formatOptionalRange(start: number | null, end: number | null): string {
-  if (start === null || end === null) {
-    return "N/A";
-  }
-  return `${start}-${end}`;
-}
+// MessageRoleIcon removed as avatars are disabled for a cleaner, minimalist layout.
 
-function formatOptionalValue(value: number | null): string {
-  return value === null ? "N/A" : String(value);
-}
-
-function formatChunkLocation(chunk: EvidenceSourceChunk): string {
-  const chunkIndex = chunk.chunk_index === null ? "N/A" : chunk.chunk_index;
-  if (chunk.page_number !== null) {
-    return `Page ${chunk.page_number}, chunk ${chunkIndex}`;
-  }
-  return `Chunk ${chunkIndex}`;
-}
-
-function formatRequirement(value: boolean): string {
-  return value ? "Required" : "Not required";
-}
 
 function formatAnswerProvenance(message: ChatMessage): string | null {
   const provenance = message.answer_provenance;
@@ -90,65 +80,154 @@ function formatAnswerProvenance(message: ChatMessage): string | null {
   return parts.join(" | ");
 }
 
-function getConversationScopeLabel(conversation: Conversation | null): string | null {
-  if (!conversation?.scoped_document_id) {
-    return null;
+function CitationDetail({ preview }: { preview: EvidencePreviewState }) {
+  if (preview.isLoading) {
+    return (
+      <p className="citationDetailStatus">
+        <LoaderCircle aria-hidden="true" className="inlineIcon spinIcon" />
+        Loading source context...
+      </p>
+    );
   }
-  return conversation.scoped_document?.title ?? conversation.scoped_document?.original_filename ?? "unavailable document";
-}
 
-function SourceContextChunk({
-  chunk,
-  label,
-  isSelected = false,
-}: {
-  chunk: EvidenceSourceChunk;
-  label: string;
-  isSelected?: boolean;
-}) {
+  if (preview.error) {
+    return <div className="inlineNotice error">{preview.error}</div>;
+  }
+
+  const source = preview.source;
+  if (!source) {
+    return <p className="citationDetailStatus">Source context is unavailable.</p>;
+  }
+
   return (
-    <section className={isSelected ? "sourceChunk selected" : "sourceChunk"}>
-      <div className="sourceChunkHeader">
-        <strong>{label}</strong>
-        <span>{formatChunkLocation(chunk)}</span>
+    <div className="citationDetail">
+      <div className="citationDetailHeader">
+        <div>
+          <strong>{source.document.original_filename}</strong>
+          <span>{formatChunkLocation(source.selected_chunk)}</span>
+        </div>
+        <span className={source.source_status === "live" ? "sourceState live" : "sourceState snapshot"}>
+          {source.source_status === "live" ? "Live" : "Snapshot"}
+        </span>
       </div>
-      <p>{chunk.text}</p>
-    </section>
+      {source.note ? <p className="citationNote">{source.note}</p> : null}
+      <p className="citationChunkText">{source.selected_chunk.text}</p>
+      {source.previous_chunks.length > 0 || source.next_chunks.length > 0 ? (
+        <details className="nearbyContext">
+          <summary>Nearby context</summary>
+          {source.previous_chunks.map((chunk) => (
+            <p key={`previous-${chunk.chunk_id}`}>
+              <strong>Before:</strong> {chunk.text}
+            </p>
+          ))}
+          {source.next_chunks.map((chunk) => (
+            <p key={`next-${chunk.chunk_id}`}>
+              <strong>After:</strong> {chunk.text}
+            </p>
+          ))}
+        </details>
+      ) : null}
+    </div>
   );
 }
 
-export function ChatWorkspace({ scopedChatRequest = null }: ChatWorkspaceProps) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [providerStatus, setProviderStatus] = useState<AnswerProviderStatus | null>(null);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+type ChatWorkspaceProps = {
+  activeWorkspace: Conversation | null;
+  setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
+  activeWorkspaceId: string | null;
+};
+
+export function ChatWorkspace({
+  activeWorkspace,
+  setConversations,
+  activeWorkspaceId,
+}: ChatWorkspaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
-  const [isLoadingProviderStatus, setIsLoadingProviderStatus] = useState(true);
-  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [providerStatusError, setProviderStatusError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [evidencePreviews, setEvidencePreviews] = useState<Record<string, EvidencePreviewState>>({});
+  const [showScrollLatest, setShowScrollLatest] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [regeneratingUserMessageId, setRegeneratingUserMessageId] = useState<string | null>(null);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState("");
 
-  const selectedConversation = useMemo(
-    () => conversations.find((conversation) => conversation.conversation_id === selectedConversationId) ?? null,
-    [conversations, selectedConversationId],
-  );
-  const providerAvailabilityLabel = isLoadingProviderStatus
-    ? "Checking"
-    : providerStatus?.is_available
-      ? "Available"
-      : "Unavailable";
-  const providerAvailabilityClass = isLoadingProviderStatus
-    ? "providerAvailability checking"
-    : providerStatus?.is_available
-      ? "providerAvailability available"
-      : "providerAvailability unavailable";
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editRef = useRef<HTMLTextAreaElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
+  const activeRequestRef = useRef<AbortController | null>(null);
 
-  async function loadMessages(conversationId: string) {
+  const handleSaveWorkspaceTitle = async () => {
+    if (!activeWorkspace || !editTitleValue.trim() || editTitleValue.trim() === activeWorkspace.title) {
+      setIsEditingTitle(false);
+      return;
+    }
+    try {
+      const updated = await updateConversation(activeWorkspace.conversation_id, {
+        title: editTitleValue.trim()
+      });
+      setConversations((current) =>
+        current.map((c) => (c.conversation_id === activeWorkspace.conversation_id ? updated : c))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to rename workspace.");
+    } finally {
+      setIsEditingTitle(false);
+    }
+  };
+
+  const canSend = question.trim().length > 0 && !isSending;
+
+  const handleEditTextareaInput = useCallback((element: HTMLTextAreaElement) => {
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    if (editingMessageId && editRef.current) {
+      editRef.current.focus();
+      const len = editRef.current.value.length;
+      editRef.current.setSelectionRange(len, len);
+      handleEditTextareaInput(editRef.current);
+    }
+  }, [editingMessageId, handleEditTextareaInput]);
+
+  useEffect(() => {
+    if (!question && textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+  }, [question]);
+
+  useEffect(() => {
+    return () => {
+      activeRequestRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = messageListRef.current;
+    if (!container) {
+      return;
+    }
+
+    if (shouldAutoScrollRef.current) {
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+        setShowScrollLatest(false);
+      });
+    } else {
+      setShowScrollLatest(messages.length > 0);
+    }
+  }, [messages.length, isLoadingMessages]);
+
+  const loadMessages = useCallback(async (conversationId: string) => {
+    shouldAutoScrollRef.current = true;
     setIsLoadingMessages(true);
     setError(null);
     try {
@@ -162,199 +241,38 @@ export function ChatWorkspace({ scopedChatRequest = null }: ChatWorkspaceProps) 
     } finally {
       setIsLoadingMessages(false);
     }
-  }
+  }, []);
 
-  async function refreshConversations(preferredConversationId?: string) {
-    const nextConversations = await fetchConversations();
-    setConversations(nextConversations);
-    const nextSelectedId = preferredConversationId ?? nextConversations[0]?.conversation_id ?? null;
-    setSelectedConversationId(nextSelectedId);
-    if (nextSelectedId) {
-      await loadMessages(nextSelectedId);
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      void loadMessages(activeWorkspaceId);
     } else {
       setMessages([]);
-      setEvidencePreviews({});
     }
-  }
+  }, [activeWorkspaceId, loadMessages]);
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadProviderStatus() {
-      setIsLoadingProviderStatus(true);
       setProviderStatusError(null);
       try {
-        const nextProviderStatus = await fetchAnswerProviderStatus();
-        if (isMounted) {
-          setProviderStatus(nextProviderStatus);
-        }
+        await fetchAnswerProviderStatus();
       } catch (loadError) {
         if (isMounted) {
-          setProviderStatus(null);
           setProviderStatusError(
-            loadError instanceof Error ? loadError.message : "Failed to load answer provider status.",
+            loadError instanceof Error ? loadError.message : "Failed to load provider status.",
           );
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingProviderStatus(false);
-        }
-      }
-    }
-
-    async function load() {
-      setIsLoadingConversations(true);
-      setError(null);
-      try {
-        const nextConversations = await fetchConversations();
-        if (!isMounted) {
-          return;
-        }
-        setConversations(nextConversations);
-        const nextSelectedId = nextConversations[0]?.conversation_id ?? null;
-        setSelectedConversationId(nextSelectedId);
-        if (nextSelectedId) {
-          const nextMessages = await fetchConversationMessages(nextSelectedId);
-          if (isMounted) {
-            setMessages(nextMessages);
-          }
-        }
-      } catch (loadError) {
-        if (isMounted) {
-          setError(loadError instanceof Error ? loadError.message : "Failed to load conversations.");
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingConversations(false);
         }
       }
     }
 
     void loadProviderStatus();
-    void load();
 
     return () => {
       isMounted = false;
     };
   }, []);
-
-  useEffect(() => {
-    const request = scopedChatRequest;
-    if (!request) {
-      return;
-    }
-
-    let isMounted = true;
-
-    async function openScopedConversation(activeRequest: ScopedChatRequest) {
-      setIsCreating(true);
-      setError(null);
-      try {
-        const nextConversations = await fetchConversations();
-        if (!isMounted) {
-          return;
-        }
-
-        const existingConversation =
-          nextConversations.find(
-            (conversation) => conversation.scoped_document_id === activeRequest.documentId,
-          ) ?? null;
-
-        if (existingConversation) {
-          setConversations(nextConversations);
-          setSelectedConversationId(existingConversation.conversation_id);
-          const nextMessages = await fetchConversationMessages(existingConversation.conversation_id);
-          if (isMounted) {
-            setMessages(nextMessages);
-            setEvidencePreviews({});
-          }
-          return;
-        }
-
-        const conversation = await createConversation(
-          `Chat: ${activeRequest.title || activeRequest.originalFilename}`,
-          activeRequest.documentId,
-        );
-        if (!isMounted) {
-          return;
-        }
-        setConversations([conversation, ...nextConversations]);
-        setSelectedConversationId(conversation.conversation_id);
-        setMessages([]);
-        setEvidencePreviews({});
-      } catch (openError) {
-        if (isMounted) {
-          setError(openError instanceof Error ? openError.message : "Failed to open document chat.");
-        }
-      } finally {
-        if (isMounted) {
-          setIsCreating(false);
-        }
-      }
-    }
-
-    void openScopedConversation(request);
-
-    return () => {
-      isMounted = false;
-    };
-  }, [scopedChatRequest]);
-
-  async function handleCreateConversation() {
-    setIsCreating(true);
-    setError(null);
-    try {
-      const conversation = await createConversation();
-      setConversations((currentConversations) => [conversation, ...currentConversations]);
-      setSelectedConversationId(conversation.conversation_id);
-      setMessages([]);
-      setEvidencePreviews({});
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Failed to create conversation.");
-    } finally {
-      setIsCreating(false);
-    }
-  }
-
-  async function handleSelectConversation(conversationId: string) {
-    if (conversationId === selectedConversationId) {
-      return;
-    }
-    setSelectedConversationId(conversationId);
-    await loadMessages(conversationId);
-  }
-
-  async function handleDeleteConversation() {
-    if (!selectedConversation) {
-      return;
-    }
-    const shouldDelete = window.confirm(`Delete conversation "${selectedConversation.title}"?`);
-    if (!shouldDelete) {
-      return;
-    }
-
-    setIsDeleting(true);
-    setError(null);
-    try {
-      await deleteConversation(selectedConversation.conversation_id);
-      const remainingConversations = conversations.filter(
-        (conversation) => conversation.conversation_id !== selectedConversation.conversation_id,
-      );
-      setConversations(remainingConversations);
-      const nextSelectedId = remainingConversations[0]?.conversation_id ?? null;
-      setSelectedConversationId(nextSelectedId);
-      if (nextSelectedId) {
-        await loadMessages(nextSelectedId);
-      } else {
-        setMessages([]);
-        setEvidencePreviews({});
-      }
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete conversation.");
-    } finally {
-      setIsDeleting(false);
-    }
-  }
 
   async function handleToggleEvidencePreview(message: ChatMessage, evidence: MessageEvidence) {
     const currentPreview = evidencePreviews[evidence.evidence_id];
@@ -412,358 +330,475 @@ export function ChatWorkspace({ scopedChatRequest = null }: ChatWorkspaceProps) 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedQuestion = question.trim();
-    if (!trimmedQuestion) {
-      setError("Ask a question before sending.");
+    if (!trimmedQuestion || isSending || !activeWorkspaceId) {
       return;
     }
 
     setIsSending(true);
     setError(null);
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
     try {
-      let conversationId = selectedConversationId;
-      if (!conversationId) {
-        const conversation = await createConversation();
-        conversationId = conversation.conversation_id;
-        setConversations((currentConversations) => [conversation, ...currentConversations]);
-        setSelectedConversationId(conversationId);
-      }
-
-      const turn = await postConversationMessage(conversationId, trimmedQuestion);
+      const turn = await postConversationMessage(activeWorkspaceId, trimmedQuestion, 5, controller.signal);
+      shouldAutoScrollRef.current = true;
       setMessages((currentMessages) => [
         ...currentMessages,
         turn.user_message,
         turn.assistant_message,
       ]);
       setQuestion("");
-      await refreshConversations(conversationId);
+      setEvidencePreviews({});
+      
+      // Sync conversations list to fetch updated titles derived from the first prompt
+      const nextConversations = await fetchConversations();
+      setConversations(nextConversations);
     } catch (sendError) {
+      if (sendError instanceof Error && sendError.name === "AbortError") {
+        setError(null);
+        return;
+      }
       setError(sendError instanceof Error ? sendError.message : "Failed to send message.");
     } finally {
+      activeRequestRef.current = null;
       setIsSending(false);
     }
   }
 
-  const selectedScopeLabel = getConversationScopeLabel(selectedConversation);
+  async function handleCopyMessage(message: ChatMessage) {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopiedMessageId(message.message_id);
+      window.setTimeout(() => {
+        setCopiedMessageId((currentMessageId) =>
+          currentMessageId === message.message_id ? null : currentMessageId,
+        );
+      }, 1400);
+    } catch {
+      setError("Could not copy message.");
+    }
+  }
+
+  function handleEditMessage(message: ChatMessage) {
+    setEditingMessageId(message.message_id);
+    setEditingText(message.content);
+  }
+
+  function handleCancelEdit() {
+    setEditingMessageId(null);
+    setEditingText("");
+  }
+
+  function handleEditKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      handleCancelEdit();
+    } else if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (editingText.trim().length > 0 && !isSending) {
+        void handleSubmitEdit();
+      }
+    }
+  }
+
+  async function handleSubmitEdit() {
+    if (!editingMessageId || editingText.trim().length === 0 || isSending || !activeWorkspaceId) {
+      return;
+    }
+
+    const targetMessageId = editingMessageId;
+    const targetContent = editingText.trim();
+
+    setEditingMessageId(null);
+    setEditingText("");
+
+    setIsSending(true);
+    setRegeneratingUserMessageId(targetMessageId);
+    setError(null);
+
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
+
+    try {
+      const turn = await updateConversationMessage(
+        activeWorkspaceId,
+        targetMessageId,
+        targetContent,
+        5,
+        controller.signal,
+      );
+
+      setMessages((currentMessages) => {
+        const nextMessages = [...currentMessages];
+        const userIndex = nextMessages.findIndex((m) => m.message_id === targetMessageId);
+        if (userIndex !== -1) {
+          nextMessages[userIndex] = turn.user_message;
+          const nextMsg = nextMessages[userIndex + 1];
+          if (nextMsg && nextMsg.role === "assistant") {
+            nextMessages[userIndex + 1] = turn.assistant_message;
+          } else {
+            nextMessages.splice(userIndex + 1, 0, turn.assistant_message);
+          }
+        }
+        return nextMessages;
+      });
+
+      const nextConversations = await fetchConversations();
+      setConversations(nextConversations);
+    } catch (sendError) {
+      if (sendError instanceof Error && sendError.name === "AbortError") {
+        setError(null);
+        return;
+      }
+      setError(sendError instanceof Error ? sendError.message : "Failed to update message.");
+    } finally {
+      activeRequestRef.current = null;
+      setIsSending(false);
+      setRegeneratingUserMessageId(null);
+    }
+  }
+
+  function handleStopResponse() {
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    setIsSending(false);
+  }
+
+  function handleComposerInput(element: HTMLTextAreaElement) {
+    element.style.height = "auto";
+    element.style.height = `${Math.min(element.scrollHeight, 176)}px`;
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+    event.preventDefault();
+    if (canSend) {
+      event.currentTarget.form?.requestSubmit();
+    }
+  }
+
+  function handleMessageScroll(event: UIEvent<HTMLDivElement>) {
+    const container = event.currentTarget;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const isNearBottom = distanceFromBottom < 96;
+    shouldAutoScrollRef.current = isNearBottom;
+    setShowScrollLatest(!isNearBottom && messages.length > 0);
+  }
+
+  function scrollToLatest() {
+    const container = messageListRef.current;
+    if (!container) {
+      return;
+    }
+    shouldAutoScrollRef.current = true;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    setShowScrollLatest(false);
+  }
+
+  const showEmptyState = !isLoadingMessages && messages.length === 0;
 
   return (
-    <section className="workspace chatWorkspace" aria-label="PaperLens chat workspace">
-      <div className="workspaceHeader">
-        <div>
-          <p className="eyebrow">Milestone 12</p>
-          <h2>Evidence chat</h2>
-          <p className="sectionText">
-            Ask over chunked local documents, then open evidence cards to inspect live context or saved snapshots.
-          </p>
-        </div>
-        <div className="statusPill">
-          <span aria-hidden="true" />
-          Chat API
-        </div>
-      </div>
-
-      <section className="providerStatusPanel" aria-label="Answer provider status">
-        <div className="providerStatusHeader">
-          <div>
-            <p className="eyebrow">Answer provider</p>
-            <h3>{providerStatus?.display_name ?? "Provider status"}</h3>
-          </div>
-          <span className={providerAvailabilityClass}>{providerAvailabilityLabel}</span>
-        </div>
-
-        {isLoadingProviderStatus ? <p className="providerStatusMessage">Checking provider status...</p> : null}
-        {providerStatusError ? <div className="alert error">{providerStatusError}</div> : null}
-        {providerStatus ? (
-          <>
-            <p className="providerStatusMessage">{providerStatus.status_message}</p>
-            <dl className="providerStatusGrid">
-              <div>
-                <dt>Provider</dt>
-                <dd>{providerStatus.provider_name}</dd>
-              </div>
-              <div>
-                <dt>Model</dt>
-                <dd>{providerStatus.model_name ?? "N/A"}</dd>
-              </div>
-              <div>
-                <dt>Type</dt>
-                <dd>{providerStatus.provider_type}</dd>
-              </div>
-              <div>
-                <dt>Host</dt>
-                <dd>{providerStatus.base_url_host ?? "N/A"}</dd>
-              </div>
-              <div>
-                <dt>API key</dt>
-                <dd>{formatRequirement(providerStatus.requires_api_key)}</dd>
-              </div>
-              <div>
-                <dt>Network</dt>
-                <dd>{formatRequirement(providerStatus.requires_network)}</dd>
-              </div>
-              <div>
-                <dt>Model download</dt>
-                <dd>{formatRequirement(providerStatus.requires_model_download)}</dd>
-              </div>
-              <div>
-                <dt>Streaming</dt>
-                <dd>{providerStatus.supports_streaming ? "Supported" : "Not supported"}</dd>
-              </div>
-            </dl>
-          </>
-        ) : null}
-      </section>
-
-      {error ? <div className="alert error">{error}</div> : null}
-
-      <div className="chatLayout">
-        <aside className="conversationPanel" aria-label="Conversations">
-          <div className="conversationPanelHeader">
-            <h3>Conversations</h3>
-            <button type="button" onClick={() => void handleCreateConversation()} disabled={isCreating}>
-              {isCreating ? "Creating..." : "New"}
-            </button>
-          </div>
-
-          {isLoadingConversations ? <p className="conversationHint">Loading conversations...</p> : null}
-          {!isLoadingConversations && conversations.length === 0 ? (
-            <div className="conversationEmpty">
-              <strong>No conversations yet.</strong>
-              <p>Start one, then ask about evidence from chunked documents.</p>
-            </div>
-          ) : null}
-
-          <div className="conversationList">
-            {conversations.map((conversation) => (
-              <button
-                type="button"
-                className={
-                  conversation.conversation_id === selectedConversationId
-                    ? "conversationItem selected"
-                    : "conversationItem"
-                }
-                key={conversation.conversation_id}
-                onClick={() => void handleSelectConversation(conversation.conversation_id)}
+    <section className={showEmptyState ? "chat-shell empty-state" : "chat-shell active-state"} aria-label="Chat workspace">
+      {/* Top Header - Minimalist, borderless, no bulky badges */}
+      {!showEmptyState && (
+        <header className="chat-active-header">
+          <div className="chat-breadcrumb">
+            <span className="breadcrumb-main">Workspace</span>
+            <span className="breadcrumb-separator">/</span>
+            {isEditingTitle ? (
+              <input
+                type="text"
+                className="workspace-title-input"
+                value={editTitleValue}
+                onChange={(e) => setEditTitleValue(e.target.value)}
+                onBlur={handleSaveWorkspaceTitle}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    void handleSaveWorkspaceTitle();
+                  } else if (e.key === "Escape") {
+                    setIsEditingTitle(false);
+                  }
+                }}
+                autoFocus
+              />
+            ) : (
+              <span 
+                className="breadcrumb-sub editable"
+                onClick={() => {
+                  setIsEditingTitle(true);
+                  setEditTitleValue(activeWorkspace?.title || "");
+                }}
+                title="Click to rename workspace"
               >
-                <span>{conversation.title}</span>
-                {conversation.scoped_document_id ? (
-                  <small>Scoped to: {getConversationScopeLabel(conversation)}</small>
-                ) : null}
-                <small>{formatDate(conversation.updated_at)}</small>
+                {activeWorkspace?.title || "Active Workspace"}
+              </span>
+            )}
+          </div>
+        </header>
+      )}
+
+      {showEmptyState ? (
+        /* Centered Empty State */
+        <div className="chat-centered-empty">
+          <div className="empty-content-wrapper">
+            <h1 className="empty-title">Chat with your sources</h1>
+            <p className="empty-subtitle">Retrieving evidence across isolated workspaces.</p>
+            
+            <form className="chat-composer-centered" onSubmit={handleSubmit}>
+              <textarea
+                aria-label="Question"
+                ref={textareaRef}
+                value={question}
+                placeholder="Ask across your prepared sources"
+                onChange={(event) => {
+                  setQuestion(event.target.value);
+                  handleComposerInput(event.currentTarget);
+                }}
+                onKeyDown={handleComposerKeyDown}
+                rows={1}
+                style={{ minHeight: 46, maxHeight: 176 }}
+              />
+              <button
+                type={isSending ? "button" : "submit"}
+                className={isSending ? "composerActionButton stopping" : "composerActionButton"}
+                aria-label={isSending ? "Stop response" : "Send question"}
+                onClick={isSending ? handleStopResponse : undefined}
+                disabled={!isSending && !canSend}
+              >
+                {isSending ? (
+                  <Square aria-hidden="true" className="buttonIcon stopIcon" />
+                ) : (
+                  <ArrowUp aria-hidden="true" className="buttonIcon" />
+                )}
               </button>
-            ))}
+            </form>
           </div>
-        </aside>
+        </div>
+      ) : (
+        /* Active Chat State */
+        <>
+          {providerStatusError ? <div className="inlineNotice error">{providerStatusError}</div> : null}
+          {error ? <div className="inlineNotice error">{error}</div> : null}
 
-        <div className="chatPanel">
-          <div className="chatPanelHeader">
-            <div>
-              <h3>{selectedConversation?.title ?? "New conversation"}</h3>
-              <p>{selectedConversation ? formatDate(selectedConversation.updated_at) : "Ready to start"}</p>
-              {selectedScopeLabel ? <p className="conversationScopeLine">Scoped to: {selectedScopeLabel}</p> : null}
-            </div>
-            <button
-              type="button"
-              className="dangerButton"
-              onClick={() => void handleDeleteConversation()}
-              disabled={!selectedConversation || isDeleting}
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </button>
-          </div>
-
-          <div className="messageList" aria-live="polite">
-            {isLoadingMessages ? <p className="emptyState">Loading messages...</p> : null}
-            {!isLoadingMessages && messages.length === 0 ? (
-              <div className="emptyState">
-                <strong>No messages yet.</strong>
-                <p>Prepare a document first, then ask using terms that appear in the extracted text.</p>
-              </div>
+          <div
+            className="chat-messages"
+            aria-live="polite"
+            onScroll={handleMessageScroll}
+            ref={messageListRef}
+          >
+            {isLoadingMessages ? (
+              <p className="chatState">
+                <LoaderCircle aria-hidden="true" className="inlineIcon spinIcon" />
+                Opening chat...
+              </p>
             ) : null}
 
-            {messages.map((message) => (
-              <article className={`messageBubble ${message.role}`} key={message.message_id}>
-                <div className="messageMeta">
-                  <strong>{getMessageLabel(message)}</strong>
-                  <span>{formatDate(message.created_at)}</span>
-                </div>
-                {message.role === "assistant" && formatAnswerProvenance(message) ? (
-                  <div className="answerProvenanceLine">
-                    <span>{formatAnswerProvenance(message)}</span>
-                    {message.answer_provenance?.fallback_reason ? (
-                      <small>{message.answer_provenance.fallback_reason}</small>
-                    ) : null}
-                  </div>
-                ) : null}
-                <p>{message.content}</p>
+            {messages.map((message, index) => {
+              const isRegenerating =
+                message.role === "assistant" &&
+                index > 0 &&
+                messages[index - 1].message_id === regeneratingUserMessageId;
 
-                {message.role === "assistant" && message.evidence.length > 0 ? (
-                  <div className="evidenceList" aria-label="Retrieved evidence">
-                    {message.evidence.map((evidence) => {
-                      const preview = evidencePreviews[evidence.evidence_id];
-                      const source = preview?.source;
-                      const documentLabel =
-                        source?.document.original_filename ??
-                        evidence.document_filename_snapshot ??
-                        evidence.document_id.slice(0, 8);
+              if (isRegenerating) {
+                return (
+                  <article className="messageRow assistant pending" key={message.message_id}>
+                    <div className="messageContentCol">
+                      <div className="messageHeader">
+                        <strong className="messageSenderName">PaperLens</strong>
+                      </div>
+                      <div className="thinkingBubble">
+                        <LoaderCircle aria-hidden="true" className="inlineIcon spinIcon" />
+                        Reading sources...
+                      </div>
+                    </div>
+                  </article>
+                );
+              }
 
-                      return (
-                        <article
-                          className={preview?.isOpen ? "evidenceCard expanded" : "evidenceCard"}
-                          key={evidence.evidence_id}
+              const isEditing = message.role === "user" && editingMessageId === message.message_id;
+
+              return (
+                <article className={`messageRow ${message.role}`} key={message.message_id}>
+                  <div className="messageContentCol">
+                    {!isEditing && (
+                      <div className="messageHeader">
+                        <strong className="messageSenderName">{getMessageLabel(message)}</strong>
+                        <span className="messageTimestamp">{formatDate(message.created_at)}</span>
+                        {message.role === "assistant" && formatAnswerProvenance(message) ? (
+                          <span className="answerProvenance">{formatAnswerProvenance(message)}</span>
+                        ) : null}
+                      </div>
+                    )}
+
+                    <div className="messageBubble">
+                      {isEditing ? (
+                        <div className="messageEditContainer">
+                           <textarea
+                            ref={editRef}
+                            value={editingText}
+                            onChange={(e) => {
+                              setEditingText(e.target.value);
+                              handleEditTextareaInput(e.currentTarget);
+                            }}
+                            onKeyDown={handleEditKeyDown}
+                            className="messageEditTextarea"
+                            rows={1}
+                          />
+                          <div className="messageEditActions">
+                            <button
+                              type="button"
+                              className="messageEditCancelButton"
+                              onClick={handleCancelEdit}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              className="messageEditSubmitButton"
+                              onClick={() => void handleSubmitEdit()}
+                              disabled={editingText.trim().length === 0 || isSending}
+                              aria-label="Submit edit"
+                            >
+                              <ArrowUp className="buttonIcon" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p>{message.content}</p>
+                      )}
+
+                      {message.role === "assistant" && message.evidence.length > 0 ? (
+                        <div className="citationBlock" aria-label="Retrieved citations">
+                          <div className="citationChips">
+                            {message.evidence.map((evidence) => {
+                              const preview = evidencePreviews[evidence.evidence_id];
+                              const pageLabel = evidence.page_number === null ? null : `p. ${evidence.page_number}`;
+                              const filename = evidence.document_filename_snapshot;
+
+                              return (
+                                <button
+                                  type="button"
+                                  className={preview?.isOpen ? "citationChip open" : "citationChip"}
+                                  key={evidence.evidence_id}
+                                  onClick={() => void handleToggleEvidencePreview(message, evidence)}
+                                  aria-expanded={Boolean(preview?.isOpen)}
+                                >
+                                  <Quote aria-hidden="true" className="buttonIcon" />
+                                  Source {evidence.rank}
+                                  {pageLabel ? <span>{pageLabel}</span> : null}
+                                  {filename ? <small>{filename}</small> : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {message.evidence.map((evidence) => {
+                            const preview = evidencePreviews[evidence.evidence_id];
+                            if (!preview?.isOpen) {
+                              return null;
+                            }
+                            return (
+                              <CitationDetail
+                                key={`detail-${evidence.evidence_id}`}
+                                preview={preview}
+                              />
+                            );
+                          })}
+                        </div>
+                      ) : null}
+
+                      {message.role === "assistant" && message.evidence.length === 0 ? (
+                        <div className="noEvidenceHint">
+                          No matching evidence was returned. Add sources to this workspace to ground your answers.
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {!isEditing && (
+                      <div className="messageActions" aria-label="Message actions">
+                        <button
+                          type="button"
+                          className="messageActionButton"
+                          aria-label="Copy message"
+                          onClick={() => void handleCopyMessage(message)}
                         >
+                          {copiedMessageId === message.message_id ? (
+                            <Check aria-hidden="true" />
+                          ) : (
+                            <Copy aria-hidden="true" />
+                          )}
+                        </button>
+                        {message.role === "user" && (
                           <button
                             type="button"
-                            className="evidenceSummary"
-                            onClick={() => void handleToggleEvidencePreview(message, evidence)}
-                            aria-expanded={Boolean(preview?.isOpen)}
-                            aria-controls={`evidence-context-${evidence.evidence_id}`}
+                            className="messageActionButton"
+                            aria-label="Edit message"
+                            onClick={() => handleEditMessage(message)}
+                            disabled={isSending}
                           >
-                            <span>
-                              <strong>Evidence {evidence.rank}</strong>
-                              <small>{documentLabel}</small>
-                            </span>
-                            <span className="evidenceScore">Score {formatScore(evidence.score)}</span>
+                            <Pencil aria-hidden="true" />
                           </button>
-                          <p className="evidenceExcerpt">{evidence.excerpt}</p>
-                          <dl>
-                            <div>
-                              <dt>Document</dt>
-                              <dd>{evidence.document_id.slice(0, 8)}</dd>
-                            </div>
-                            <div>
-                              <dt>Page</dt>
-                              <dd>{evidence.page_number ?? "N/A"}</dd>
-                            </div>
-                            <div>
-                              <dt>Chunk</dt>
-                              <dd>{evidence.chunk_id.slice(0, 8)}</dd>
-                            </div>
-                          </dl>
-
-                          {preview?.isOpen ? (
-                            <div className="sourcePreviewPanel" id={`evidence-context-${evidence.evidence_id}`}>
-                              {preview.isLoading ? (
-                                <p className="sourcePreviewStatus">Loading source context...</p>
-                              ) : null}
-                              {preview.error ? <div className="alert error">{preview.error}</div> : null}
-
-                              {source ? (
-                                <>
-                                  <div className="sourceStateLine">
-                                    <span
-                                      className={
-                                        source.source_status === "live"
-                                          ? "sourceStatusBadge live"
-                                          : "sourceStatusBadge snapshot"
-                                      }
-                                    >
-                                      {source.source_status === "live"
-                                        ? "Live source context"
-                                        : "Snapshot fallback"}
-                                    </span>
-                                    {source.note ? <p className="sourcePreviewNote">{source.note}</p> : null}
-                                  </div>
-
-                                  <div className="sourcePreviewHeader">
-                                    <div>
-                                      <strong>{source.document.original_filename}</strong>
-                                      <span>{source.document.title}</span>
-                                    </div>
-                                    <span>{formatChunkLocation(source.selected_chunk)}</span>
-                                  </div>
-
-                                  <dl className="sourceMetaGrid">
-                                    <div>
-                                      <dt>Document id</dt>
-                                      <dd>{source.document.id.slice(0, 8)}</dd>
-                                    </div>
-                                    <div>
-                                      <dt>Chunk id</dt>
-                                      <dd>{source.selected_chunk.chunk_id.slice(0, 8)}</dd>
-                                    </div>
-                                    <div>
-                                      <dt>Page</dt>
-                                      <dd>{formatOptionalValue(source.selected_chunk.page_number)}</dd>
-                                    </div>
-                                    <div>
-                                      <dt>Page offsets</dt>
-                                      <dd>
-                                        {formatOptionalRange(
-                                          source.selected_chunk.page_start,
-                                          source.selected_chunk.page_end,
-                                        )}
-                                      </dd>
-                                    </div>
-                                    <div>
-                                      <dt>Offsets</dt>
-                                      <dd>
-                                        {formatOptionalRange(
-                                          source.selected_chunk.char_start,
-                                          source.selected_chunk.char_end,
-                                        )}
-                                      </dd>
-                                    </div>
-                                    <div>
-                                      <dt>Estimated tokens</dt>
-                                      <dd>{formatOptionalValue(source.selected_chunk.estimated_token_count)}</dd>
-                                    </div>
-                                  </dl>
-
-                                  <div className="sourceContextList">
-                                    {source.previous_chunks.map((chunk) => (
-                                      <SourceContextChunk
-                                        chunk={chunk}
-                                        label="Previous context"
-                                        key={chunk.chunk_id}
-                                      />
-                                    ))}
-                                    <SourceContextChunk
-                                      chunk={source.selected_chunk}
-                                      label="Retrieved chunk"
-                                      isSelected
-                                    />
-                                    {source.next_chunks.map((chunk) => (
-                                      <SourceContextChunk chunk={chunk} label="Next context" key={chunk.chunk_id} />
-                                    ))}
-                                    {source.previous_chunks.length === 0 && source.next_chunks.length === 0 ? (
-                                      <p className="sourcePreviewStatus">No neighboring chunks are available.</p>
-                                    ) : null}
-                                  </div>
-                                </>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </article>
-                      );
-                    })}
+                        )}
+                      </div>
+                    )}
                   </div>
-                ) : null}
-                {message.role === "assistant" && message.evidence.length === 0 ? (
-                  <div className="noEvidenceHint">
-                    Prepare documents from the library, then ask with words that appear in those chunks.
+                </article>
+              );
+            })}
+
+            {isSending && !regeneratingUserMessageId ? (
+              <article className="messageRow assistant pending">
+                <div className="messageContentCol">
+                  <div className="messageHeader">
+                    <strong className="messageSenderName">PaperLens</strong>
                   </div>
-                ) : null}
+                  <div className="thinkingBubble">
+                    <LoaderCircle aria-hidden="true" className="inlineIcon spinIcon" />
+                    Reading sources...
+                  </div>
+                </div>
               </article>
-            ))}
+            ) : null}
           </div>
+          <div className="chat-messages-fade" />
 
-          <form className="messageComposer" onSubmit={handleSubmit}>
-            <label htmlFor="chat-question">Question</label>
-            <div className="messageComposerControls">
-              <textarea
-                id="chat-question"
-                value={question}
-                placeholder="Ask about a method, result, limitation, or claim"
-                onChange={(event) => setQuestion(event.target.value)}
-                rows={3}
-              />
-              <button type="submit" disabled={isSending}>
-                {isSending ? "Sending..." : "Send"}
-              </button>
-            </div>
+          {showScrollLatest ? (
+            <button type="button" className="scrollLatestButton" onClick={scrollToLatest}>
+              <ArrowDown aria-hidden="true" className="buttonIcon" />
+              Latest
+            </button>
+          ) : null}
+
+          <form className="chat-composer" onSubmit={handleSubmit}>
+            <textarea
+              aria-label="Question"
+              ref={textareaRef}
+              value={question}
+              placeholder="Ask across your prepared sources"
+              onChange={(event) => {
+                setQuestion(event.target.value);
+                handleComposerInput(event.currentTarget);
+              }}
+              onKeyDown={handleComposerKeyDown}
+              rows={1}
+              style={{ minHeight: 46, maxHeight: 176 }}
+            />
+            <button
+              type={isSending ? "button" : "submit"}
+              className={isSending ? "composerActionButton stopping" : "composerActionButton"}
+              aria-label={isSending ? "Stop response" : "Send question"}
+              onClick={isSending ? handleStopResponse : undefined}
+              disabled={!isSending && !canSend}
+            >
+              {isSending ? (
+                <Square aria-hidden="true" className="buttonIcon stopIcon" />
+              ) : (
+                <ArrowUp aria-hidden="true" className="buttonIcon" />
+              )}
+            </button>
           </form>
-        </div>
-      </div>
+        </>
+      )}
     </section>
   );
 }
